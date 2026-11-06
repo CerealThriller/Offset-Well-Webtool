@@ -118,7 +118,8 @@ class Plat(BaseModel):
     PDF so the engineer can check the locations before the Compass load.
     """
 
-    file_id: str  # the one-plat PDF in the file store
+    file_id: str  # the plat file: the original TIFF or PDF, or a PDF of the plat pages
+    view_file_id: str = ""  # PDF copy for the browser, when the plat file is TIFF
     source: str
     source_file_id: str = ""  # the document that holds the plat pages
     title: str = ""

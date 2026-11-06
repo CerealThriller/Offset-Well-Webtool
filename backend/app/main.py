@@ -200,7 +200,9 @@ def _job_files(job: jobs.Job) -> dict[str, tuple[str, str]]:
 
         for i, p in enumerate(w.plats, start=1):
             if p.file_id not in out:
-                out[p.file_id] = (folder, unique(f"plat_{i}.pdf"))
+                out[p.file_id] = (folder, unique(f"plat_{i}.{_ext(p.file_id)}"))
+            if p.view_file_id and p.view_file_id not in out:
+                out[p.view_file_id] = (folder, unique(f"plat_{i}.pdf"))
         for f in w.files:
             if f.file_id not in out:
                 out[f.file_id] = (folder, unique(f.file_name or f.file_id[:12]))
@@ -208,6 +210,14 @@ def _job_files(job: jobs.Job) -> dict[str, tuple[str, str]]:
                 stem = (f.file_name or f.file_id[:12]).rpartition(".")[0] or f.file_name
                 out[f.view_file_id] = (folder, unique(f"{stem}.pdf"))
     return out
+
+
+def _ext(file_id: str) -> str:
+    """File extension of a stored file: pdf, tif, png or jpg."""
+    try:
+        return files.ext_of(file_id)
+    except (ValueError, FileNotFoundError):
+        return "pdf"
 
 
 def _stored(file_id: str):
@@ -259,7 +269,7 @@ def plats_zip(job_id: str, request: Request) -> Response:
         for w in job.offsets:
             for i, p in enumerate(w.plats, start=1):
                 try:
-                    z.write(files.path(p.file_id), f"{_safe(f'{w.api}_{w.name}')}_plat_{i}.pdf")
+                    z.write(files.path(p.file_id), f"{_safe(f'{w.api}_{w.name}')}_plat_{i}.{_ext(p.file_id)}")
                     count += 1
                 except (ValueError, FileNotFoundError):
                     continue
@@ -275,7 +285,8 @@ def package_zip(job_id: str, request: Request) -> Response:
     Layout:
       <workbook>.xlsx
       wells/<API>_<name>/<source file>
-      wells/<API>_<name>/plat_<n>.pdf
+      wells/<API>_<name>/plat_<n>.tif or .pdf (the plat as received)
+      wells/<API>_<name>/plat_<n>.pdf (PDF copy of a TIFF plat)
     """
     job = _job_or_404(job_id, request)
     links: dict[str, str] = {}

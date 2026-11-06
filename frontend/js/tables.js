@@ -112,9 +112,10 @@ function renderPlats(container, well, fileUrl) {
   well.plats.forEach((p, i) => {
     gallery.append(
       el("figure", {},
-        el("a", { href: fileUrl(p.file_id), target: "_blank", rel: "noopener" },
+        el("a", { href: fileUrl(p.view_file_id || p.file_id), target: "_blank", rel: "noopener" },
           el("img", { src: `${fileUrl(p.file_id)}/thumb.png`, alt: `Plat ${i + 1} of ${well.api}`, loading: "lazy" })),
-        el("figcaption", {}, `Plat ${i + 1}: ${p.title}, page(s) ${p.pages.join(", ")} of the source.`)),
+        el("figcaption", {}, `Plat ${i + 1}: ${p.title}, page(s) ${p.pages.join(", ")} of the source. `,
+          el("a", { href: `${fileUrl(p.file_id)}?download=true` }, "Download as received"))),
     );
   });
   container.append(gallery);

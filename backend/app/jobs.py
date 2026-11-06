@@ -275,7 +275,7 @@ def _keep_file(data: bytes, title: str, url: str, kind: str) -> SourceFile:
     ext = files.extension(data)
     return SourceFile(
         file_id=files.store(data),
-        view_file_id=files.store_pages(data, list(range(1, files.pages(data) + 1))) if ext in ("tif", "png", "jpg") else "",
+        view_file_id=files.pdf_copy(data) if ext in ("tif", "png", "jpg") else "",
         title=title,
         source_url=url,
         kind=kind,

@@ -13,7 +13,7 @@ from pathlib import Path
 import pymupdf
 
 from .config import settings
-from .extraction.documents import page_count, render_pages
+from .extraction.documents import as_pdf, page_count, render_pages
 
 THUMB_DPI = 110
 
@@ -79,14 +79,23 @@ def pages(data: bytes) -> int:
 
 def store_pages(data: bytes, page_numbers: list[int]) -> str:
     """Save the given pages (1-based) of a document as one PDF. Return its id."""
-    src = pymupdf.open(stream=data, filetype="pdf" if data[:4] == b"%PDF" else None)
-    if not src.is_pdf:
-        src = pymupdf.open("pdf", src.convert_to_pdf())
+    src = pymupdf.open("pdf", as_pdf(data))
     out = pymupdf.open()
     for n in page_numbers:
         if 1 <= n <= src.page_count:
             out.insert_pdf(src, from_page=n - 1, to_page=n - 1)
-    return store(out.tobytes(garbage=3, deflate=True))
+    return store(out.tobytes(garbage=3, deflate=True, deflate_images=True, no_new_id=True))
+
+
+def pdf_copy(data: bytes) -> str:
+    """Save a PDF copy of a TIFF or image file for the browser. Return its id, or "" for a PDF."""
+    if extension(data) == "pdf":
+        return ""
+    return store(as_pdf(data))
+
+
+def ext_of(file_id: str) -> str:
+    return path(file_id).suffix.lstrip(".")
 
 
 def thumbnail(file_id: str) -> bytes:

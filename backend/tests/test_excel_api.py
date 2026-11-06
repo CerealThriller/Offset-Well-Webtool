@@ -89,6 +89,9 @@ def test_job_flow_keeps_files_for_review(fixtures, monkeypatch):
     assert survey["source_file_id"] == files["survey"]["file_id"]
     (plat,) = w["plats"]
     assert set(plat) >= {"file_id", "title", "pages"} and "points" not in plat  # plats are not read
+    # A whole-file plat keeps its original format; the browser gets the PDF copy.
+    assert plat["file_id"] == files["plat"]["file_id"]
+    assert plat["view_file_id"] == files["plat"]["view_file_id"]
 
     # The stored copies are the downloaded bytes.
     r = client.get(f"/api/jobs/{job_id}/files/{files['survey']['file_id']}")
@@ -97,7 +100,8 @@ def test_job_flow_keeps_files_for_review(fixtures, monkeypatch):
     assert "inline" in r.headers["content-disposition"]
     r = client.get(f"/api/jobs/{job_id}/files/{files['survey']['file_id']}?download=true")
     assert "attachment" in r.headers["content-disposition"]
-    assert client.get(f"/api/jobs/{job_id}/files/{plat['file_id']}").content[:4] == b"%PDF"
+    assert client.get(f"/api/jobs/{job_id}/files/{plat['file_id']}").content[:4] == b"II*\x00"  # TIFF as received
+    assert client.get(f"/api/jobs/{job_id}/files/{plat['view_file_id']}").content[:4] == b"%PDF"
     assert client.get(f"/api/jobs/{job_id}/files/{plat['file_id']}/thumb.png").content[:4] == b"\x89PNG"
     # A file that is not in the job is not served.
     assert client.get(f"/api/jobs/{job_id}/files/{'0' * 64}").status_code == 404
@@ -112,14 +116,20 @@ def test_package_links_resolve(fixtures, monkeypatch):
     z = zipfile.ZipFile(io.BytesIO(r.content))
     names = set(z.namelist())
     folder = "wells/42-301-34197_SCRAPFILE_NORTH_#1H"
-    # The original TIFF from RRC, its PDF copy for viewing, and the plat PDF.
-    assert {f"{folder}/plat_1.pdf", f"{folder}/Directional_Survey_-_MWD.pdf", f"{folder}/Plat.tif", f"{folder}/Plat.pdf"} <= names
+    # The plat as received from RRC (TIFF), its PDF copy for viewing, and the survey.
+    assert names == {
+        "pad_offset_surveys.xlsx",
+        f"{folder}/plat_1.tif",
+        f"{folder}/plat_1.pdf",
+        f"{folder}/Directional_Survey_-_MWD.pdf",
+    }
+    assert z.read(f"{folder}/plat_1.tif") == (TX / "scrapfile_north_1h_plat.tif").read_bytes()
     (xlsx,) = [n for n in names if n.endswith(".xlsx")]
     wb = load_workbook(io.BytesIO(z.read(xlsx)))
     ws = wb["42-301-34197 SCRAPFILE NORTH #1"]
     targets = {c.hyperlink.target for row in ws.iter_rows() for c in row if c.hyperlink}
     assert f"{folder}/Directional_Survey_-_MWD.pdf" in targets
-    assert f"{folder}/plat_1.pdf" in targets
+    assert f"{folder}/plat_1.tif" in targets
     assert targets <= names  # every link in the workbook opens a file in the package
     values = [c.value for row in ws.iter_rows() for c in row]
     assert "Source files" in values and "Plat checks" not in values
@@ -130,7 +140,7 @@ def test_package_links_resolve(fixtures, monkeypatch):
     assert "PLAN TEST 1H" in plain.sheetnames
 
     pz = zipfile.ZipFile(io.BytesIO(client.get(f"/api/jobs/{job_id}/plats.zip").content))
-    assert pz.namelist() == ["42-301-34197_SCRAPFILE_NORTH_#1H_plat_1.pdf"]
+    assert pz.namelist() == ["42-301-34197_SCRAPFILE_NORTH_#1H_plat_1.tif"]
 
 
 def test_upload_is_kept(fixtures, monkeypatch):

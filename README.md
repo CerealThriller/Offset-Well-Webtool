@@ -61,7 +61,17 @@ The app pulls the plat of each offset well. It does not read the plat. The perso
 - New Mexico: the Form C-102 pages of the well file. The app finds these pages in the same page sort that finds the survey pages. This sort needs `ANTHROPIC_API_KEY`.
 - Colorado: plat documents in the ECMC list. Download each one and upload it on the well row. If the file name contains "plat" or "C-102", the app keeps the file as a plat with no page sort.
 
-The app keeps the plat pages as one PDF for each plat. The app shows the plat image above the survey of the well. The Excel tab of each well holds the plat image and a link to the plat PDF. "Download plats" gives a ZIP file of all plats in the job.
+Plats arrive as TIFF or PDF. The app keeps each plat in the format that it arrives in:
+
+| Plat source | Kept as | PDF copy for the browser |
+|---|---|---|
+| Whole TIFF file (for example a Texas "Plat" attachment) | The original `.tif` | Yes |
+| Whole PDF file | The original `.pdf` | Not necessary |
+| Pages in a larger PDF (New Mexico C-102 in a well file) | A `.pdf` of the plat pages | Not necessary |
+
+The app shows the plat image above the survey of the well. The image opens the PDF copy, or the PDF itself. "Download as received" gives the original file. The Excel tab of each well holds the plat image and a link to the plat file. "Download plats" gives a ZIP file of all plats in the job, in their original formats.
+
+The app reads TIFF files with Pillow, which knows old-style JPEG and CCITT compression. Multi-page TIFF files become multi-page PDF copies. Black-and-white pages stay lossless in the copy. If Pillow cannot read a file, PyMuPDF converts it.
 
 ## Review the source files
 
@@ -82,7 +92,8 @@ Some state sites send TIFF images. Most browsers cannot show TIFF, so the app al
 ```
 <EDM name>_offset_surveys.xlsx
 wells/<API>_<well name>/<source files>
-wells/<API>_<well name>/plat_<n>.pdf
+wells/<API>_<well name>/plat_<n>.tif or .pdf   (the plat as received)
+wells/<API>_<well name>/plat_<n>.pdf            (PDF copy of a TIFF plat)
 ```
 
 Extract the ZIP file before you open the workbook. The file links in the workbook open the files in the `wells` folder.

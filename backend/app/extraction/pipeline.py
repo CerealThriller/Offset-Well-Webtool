@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 M_TO_FT = 3.280839895013123
 CLASSIFY_DPI = 90
 EXTRACT_DPI = 200
-CACHE_VERSION = 3
+CACHE_VERSION = 4
 
 
 def _cache_path(data: bytes):
@@ -78,7 +78,7 @@ def process_document(
     if is_plat:
         say(f"{source}: plat kept for review")
         result.plat_pages = list(range(1, n + 1))
-        result.plats.append(plats.make_plat(data, result.plat_pages, source, title, file_id))
+        result.plats.append(plats.make_plat(data, result.plat_pages, source, title, file_id, n))
         _save(cpath, result)
         return result
 
@@ -112,7 +112,7 @@ def process_document(
                 s.grid_convergence_deg = conv
     for group in _consecutive(plat_pages):
         say(f"{source}: plat on page(s) {', '.join(map(str, group))} kept for review")
-        result.plats.append(plats.make_plat(data, group, source, title or "plat", file_id))
+        result.plats.append(plats.make_plat(data, group, source, title or "plat", file_id, n))
     _save(cpath, result)
     return result
 
