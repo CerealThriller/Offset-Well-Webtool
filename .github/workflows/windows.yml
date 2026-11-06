@@ -64,7 +64,7 @@ jobs:
           "Job $($job.id): $($job.planned.Count) planned wells"
           if ($job.planned.Count -ne 2) { throw "Expected 2 planned wells" }
           Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*uvicorn app.main:app*' } |
-            ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 
       - name: Second start reuses the setup
         shell: cmd
