@@ -1,0 +1,107 @@
+name: Windows package
+
+# Tests Start-OffsetWellWebtool.bat on a real Windows machine, then builds
+# OffsetWellWebtool-windows.zip. Pushes to a branch publish the ZIP as the
+# release "windows-<branch>" so it can be downloaded from the Releases page.
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  batch-file:
+    name: Batch file (${{ matrix.python }} Python)
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: [installed, downloaded]
+    env:
+      OWT_HOME: ${{ github.workspace }}\owt-home
+      OWT_NO_PAUSE: "1"
+      OWT_NO_BROWSER: "1"
+      OWT_FORCE_PYTHON_DOWNLOAD: ${{ matrix.python == 'downloaded' && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        if: matrix.python == 'installed'
+        with:
+          python-version: "3.13"
+
+      - name: Check line endings
+        shell: pwsh
+        run: |
+          $bytes = [IO.File]::ReadAllBytes("Start-OffsetWellWebtool.bat")
+          $lf = ($bytes | Where-Object { $_ -eq 10 }).Count
+          $crlf = ([Text.Encoding]::ASCII.GetString($bytes) -split "`r`n").Count - 1
+          if ($lf -ne $crlf) { throw "The batch file must have CRLF line endings ($crlf CRLF, $lf LF)" }
+
+      - name: Setup (first start)
+        shell: cmd
+        env:
+          OWT_SETUP_ONLY: "1"
+        run: call Start-OffsetWellWebtool.bat
+
+      - name: Show the Python that the app uses
+        shell: cmd
+        run: '"%OWT_HOME%\venv\Scripts\python.exe" -c "import sys; print(sys.version, sys.executable)"'
+
+      - name: Start the app and check it
+        shell: pwsh
+        run: |
+          $proc = Start-Process cmd.exe -ArgumentList '/c', 'Start-OffsetWellWebtool.bat' -PassThru -WindowStyle Hidden
+          $ok = $false
+          for ($i = 0; $i -lt 90; $i++) {
+            try { $h = Invoke-RestMethod http://127.0.0.1:8000/api/health; $ok = $true; break } catch { Start-Sleep 2 }
+          }
+          if (-not $ok) { throw "The app did not start" }
+          "Health: $($h | ConvertTo-Json -Compress)"
+          if (-not $h.nadcon_grid) { throw "The NADCON grid was not found" }
+          $page = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/
+          if ($page.StatusCode -ne 200) { throw "The page did not load" }
+          $job = curl.exe -s -f -F "file=@backend/tests/fixtures/sample_edm.xml" -F "radius_miles=0.5" -F "states=TX" http://127.0.0.1:8000/api/jobs | ConvertFrom-Json
+          if (-not $job.id) { throw "The job was not created" }
+          "Job $($job.id): $($job.planned.Count) planned wells"
+          if ($job.planned.Count -ne 2) { throw "Expected 2 planned wells" }
+          Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*uvicorn app.main:app*' } |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+
+      - name: Second start reuses the setup
+        shell: cmd
+        env:
+          OWT_SETUP_ONLY: "1"
+        run: call Start-OffsetWellWebtool.bat
+
+  package:
+    needs: batch-file
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the ZIP
+        run: |
+          mkdir -p dist/OffsetWellWebtool/backend
+          cp Start-OffsetWellWebtool.bat README-Windows.txt dist/OffsetWellWebtool/
+          cp -r backend/app backend/requirements.txt dist/OffsetWellWebtool/backend/
+          cp -r frontend dist/OffsetWellWebtool/
+          find dist -name __pycache__ -prune -exec rm -rf {} +
+          echo "${GITHUB_SHA}" > dist/OffsetWellWebtool/VERSION.txt
+          (cd dist && zip -qr OffsetWellWebtool-windows.zip OffsetWellWebtool)
+          unzip -l dist/OffsetWellWebtool-windows.zip | tail -1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OffsetWellWebtool-windows
+          path: dist/OffsetWellWebtool-windows.zip
+      - name: Publish the release
+        if: github.ref_type == 'branch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="${GITHUB_REF_NAME}"
+          tag="windows-$(echo "$branch" | tr '/' '-')"
+          gh release delete "$tag" --cleanup-tag --yes || true
+          gh release create "$tag" dist/OffsetWellWebtool-windows.zip \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "Windows package ($branch)" \
+            --notes "Download OffsetWellWebtool-windows.zip, extract it, and double-click Start-OffsetWellWebtool.bat. See README-Windows.txt in the ZIP. Built from ${GITHUB_SHA}."

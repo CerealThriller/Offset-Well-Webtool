@@ -150,6 +150,23 @@ The workflow `.github/workflows/tests.yml` runs on each push and pull request:
 
 To see the results, open the **Actions** tab of the repository. To run the workflow by hand, select **Tests**, then **Run workflow**.
 
+## Run on a Windows laptop
+
+Use this method on a company laptop. The laptop needs no admin rights and no Claude access.
+
+1. Open the **Releases** page of the repository on GitHub.
+2. Download `OffsetWellWebtool-windows.zip` from the release "Windows package".
+3. Extract the ZIP file.
+4. Double-click `Start-OffsetWellWebtool.bat`.
+
+The first start takes 3 to 10 minutes. The batch file installs Python for your user if the laptop has no Python 3.11 or later. Then it installs the packages and opens the app at http://127.0.0.1:8000. Only the laptop can open the app. `README-Windows.txt` in the ZIP file has the network needs and the fixes for common problems.
+
+You can also use **Code > Download ZIP** on the branch page. The batch file is in the root of the repository.
+
+Without the Claude API, the search, the text-layer surveys, the plats and the source files work. Scanned survey pages and the New Mexico page sort need the Claude API.
+
+The workflow `.github/workflows/windows.yml` runs the batch file on a Windows machine on each push, then publishes the ZIP file.
+
 ## Run on a workstation
 
 You need Python 3.12 or later.
