@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import logging
+import re
+import zipfile
 from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -15,6 +18,7 @@ from .config import settings
 from .connectors.registry import catalog
 from .edm.parser import EdmError, ParseOptions
 from .export.excel import build_workbook
+from .extraction.plats import plat_pdf_path, plat_png
 from .geo.buffer import BufferMode
 from .geo.crs import COMMON_PROJECTED_CRS, nadcon_grid_available
 from .models import Datum, NorthReference
@@ -153,6 +157,8 @@ def export(job_id: str, request: Request) -> Response:
         "Datum (input)": job.parse_options.get("datum") or "from file",
         "Offset wells found": len(job.offsets),
         "Wells with surveys": sum(1 for w in job.offsets if w.surveys),
+        "Wells with plats": sum(1 for w in job.offsets if w.plats),
+        "Plat checks": "Plat SHL vs state GIS (50 ft), plat BHL vs GIS and survey end (100 ft), BHL MD (150 ft).",
         "Coordinates": "Surface positions in NAD83. Survey offsets in feet as reported.",
         "QC": "Shaded rows disagree with a minimum curvature recalculation. Check them against the source.",
     }
@@ -162,6 +168,62 @@ def export(job_id: str, request: Request) -> Response:
         data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
+
+
+def _plat_or_404(job_id: str, key: str, index: int, request: Request):
+    job = _job_or_404(job_id, request)
+    well = next((w for w in job.offsets if w.key == key), None)
+    if well is None or not 0 <= index < len(well.plats):
+        raise HTTPException(404, "Plat not found")
+    return well, well.plats[index]
+
+
+@app.get("/api/jobs/{job_id}/wells/{key}/plats/{index}.pdf")
+def plat_pdf(job_id: str, key: str, index: int, request: Request) -> Response:
+    well, plat = _plat_or_404(job_id, key, index, request)
+    path = plat_pdf_path(plat.file_id)
+    if not path.exists():
+        raise HTTPException(404, "Plat file not found")
+    return Response(
+        path.read_bytes(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{_plat_name(well, index)}"'},
+    )
+
+
+@app.get("/api/jobs/{job_id}/wells/{key}/plats/{index}.png")
+def plat_image(job_id: str, key: str, index: int, request: Request) -> Response:
+    _, plat = _plat_or_404(job_id, key, index, request)
+    try:
+        return Response(plat_png(plat.file_id), media_type="image/png")
+    except FileNotFoundError as e:
+        raise HTTPException(404, "Plat file not found") from e
+
+
+def _plat_name(well, index: int) -> str:
+    safe = re.sub(r"[^A-Za-z0-9#._-]+", "_", f"{well.api}_{well.name}").strip("_")
+    return f"{safe}_plat_{index + 1}.pdf"
+
+
+@app.get("/api/jobs/{job_id}/plats.zip")
+def plats_zip(job_id: str, request: Request) -> Response:
+    job = _job_or_404(job_id, request)
+    buf = io.BytesIO()
+    count = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for w in job.offsets:
+            for i, p in enumerate(w.plats):
+                path = plat_pdf_path(p.file_id)
+                if path.exists():
+                    z.write(path, _plat_name(w, i))
+                    count += 1
+    if not count:
+        raise HTTPException(404, "No plats in this job")
+    return Response(
+        buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{job.id}_plats.zip"'},
     )
 
 

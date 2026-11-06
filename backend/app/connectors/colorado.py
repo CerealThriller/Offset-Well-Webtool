@@ -23,12 +23,12 @@ from typing import Optional
 
 import shapefile  # pyshp
 from lxml import html
-from shapely.geometry import Point, Polygon
+from shapely.geometry import LineString, Point, Polygon
 from shapely.prepared import prep
 
 from ..config import settings
 from ..models import LatLon, OffsetWell, SurveyDocument
-from .base import StateConnector, looks_like_survey
+from .base import StateConnector, looks_like_plat, looks_like_survey
 
 BASE = "https://ecmc.state.co.us"
 WELLS_ZIP = f"{BASE}/documents/data/downloads/gis/WELLS_SHP.ZIP"
@@ -36,6 +36,7 @@ BH_ZIP = f"{BASE}/documents/data/downloads/gis/DIRECTIONAL_BOTTOMHOLE_LOCATIONS_
 DOCS = f"{BASE}/cogisdb/Resources/Docs.aspx?classid=07~08&id={{api8}}"
 FACILITY = f"{BASE}/cogisdb/Facility/FacilityDetail?api={{api8}}"
 CACHE_S = 7 * 86400
+LATERAL_REACH_DEG = 0.05  # about 3.5 miles
 SKIP_STATUS = ("AL", "XX")  # abandoned location, permit only
 
 
@@ -81,14 +82,20 @@ class ColoradoConnector(StateConnector):
     def find_wells(self, area: Polygon) -> list[OffsetWell]:
         self._load()
         assert self._wells is not None and self._bh is not None
-        minx, miny, maxx, maxy = area.bounds
+        # Surfaces up to LATERAL_REACH_DEG outside the area can have laterals that cross it.
+        minx, miny, maxx, maxy = area.buffer(LATERAL_REACH_DEG).bounds
         pa = prep(area)
         out = []
         for lon, lat, r in self._wells:
-            if not (minx <= lon <= maxx and miny <= lat <= maxy) or not pa.contains(Point(lon, lat)):
+            if not (minx <= lon <= maxx and miny <= lat <= maxy):
                 continue
             api8 = r["API"]
             bh = self._bh.get(api8)
+            if bh and bh.get("Lat"):
+                if not area.intersects(LineString([(lon, lat), (bh["Long"], bh["Lat"])])):
+                    continue
+            elif not pa.contains(Point(lon, lat)):
+                continue
             w = OffsetWell(
                 state=self.code,
                 api=r.get("API_Label") or f"05-{api8[:3]}-{api8[3:]}",
@@ -113,7 +120,7 @@ class ColoradoConnector(StateConnector):
             return []
         api8 = well.api.replace("-", "")[2:10]
         page = self.http.get(DOCS.format(api8=api8), cache_s=86400).text
-        return [d for d in parse_docs_page(page) if d.likely_survey]
+        return [d for d in parse_docs_page(page) if d.likely_survey or d.likely_plat]
 
 
 def parse_docs_page(page: str) -> list[SurveyDocument]:
@@ -134,6 +141,7 @@ def parse_docs_page(page: str) -> list[SurveyDocument]:
                 doc_type=name,
                 date=cells[5].text_content().strip() or None,
                 likely_survey=looks_like_survey(name),
+                likely_plat=looks_like_plat(name),
                 access="manual",
             )
         )

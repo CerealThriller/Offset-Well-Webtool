@@ -32,4 +32,6 @@ export const api = {
     return request(`/api/jobs/${id}/wells/${encodeURIComponent(key)}/upload`, { method: "POST", body: fd });
   },
   exportUrl: (id) => `/api/jobs/${id}/export.xlsx`,
+  platsUrl: (id) => `/api/jobs/${id}/plats.zip`,
+  platUrl: (id, key, i, ext) => `/api/jobs/${id}/wells/${encodeURIComponent(key)}/plats/${i}.${ext}`,
 };

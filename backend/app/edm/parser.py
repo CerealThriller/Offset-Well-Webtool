@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import gzip
 import io
-import math
 import re
 import zipfile
 from collections import defaultdict
@@ -371,7 +370,5 @@ def _path_latlon(surface: LatLon, stations: list[SurveyStation], north_ref: Nort
         compute_positions(tmp, tie_tvd=tmp[0].tvd if tmp[0].tvd is not None else tmp[0].md, tie_ns=0.0, tie_ew=0.0)
         ne = [(s.calc_ns, s.calc_ew) for s in tmp]
     if north_ref == NorthReference.GRID and conv:
-        c = math.radians(conv)
-        # Grid-referenced offsets: rotate by the convergence to true north.
-        ne = [(n * math.cos(c) - e * math.sin(c), n * math.sin(c) + e * math.cos(c)) for n, e in ne]  # type: ignore[operator]
+        ne = [geo.rotate_offsets(n, e, conv) for n, e in ne]  # type: ignore[arg-type]
     return geo.offsets_to_latlon(surface, ne)  # type: ignore[arg-type]

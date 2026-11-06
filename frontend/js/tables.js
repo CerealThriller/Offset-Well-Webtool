@@ -14,11 +14,24 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
+export function checkSummary(checks) {
+  const scored = checks.filter((c) => c.ok !== null);
+  if (!scored.length) return checks.length ? "not checked" : "";
+  const good = scored.filter((c) => c.ok).length;
+  return good === scored.length ? "ok" : `${good} of ${scored.length} ok`;
+}
+
+function checkClass(checks) {
+  const scored = checks.filter((c) => c.ok !== null);
+  if (!scored.length) return "none";
+  return scored.every((c) => c.ok) ? "ok" : "bad";
+}
+
 export function renderOffsetTable(tbody, job, selected, handlers) {
   tbody.replaceChildren();
   for (const w of job.offsets) {
     const docs = el("td", { class: "docs" });
-    const shown = w.documents.filter((x) => x.likely_survey || w.state === "NM");
+    const shown = w.documents.filter((x) => x.likely_survey || x.likely_plat || w.state === "NM");
     for (const d of shown.slice(0, 3)) {
       const label = d.title.length > 24 ? `${d.title.slice(0, 22)}...` : d.title;
       docs.append(el("a", { href: d.url, target: "_blank", rel: "noopener", title: d.title }, label), " ");
@@ -43,6 +56,7 @@ export function renderOffsetTable(tbody, job, selected, handlers) {
       el("td", {}, w.trajectory),
       el("td", { class: "num" }, fmt(w.distance_to_plan_ft, 0)),
       el("td", {}, w.survey_status),
+      el("td", { class: `check-${checkClass(w.plat_checks)}` }, checkSummary(w.plat_checks)),
       docs,
     );
     row.dataset.key = w.key;
@@ -55,11 +69,12 @@ const COLS = [
   ["VS", "vs"], ["DLS", "dls"], ["Calc TVD", "calc_tvd"], ["Calc N/S", "calc_ns"], ["Calc E/W", "calc_ew"],
 ];
 
-export function renderSurveys(container, title, well) {
+export function renderSurveys(container, title, well, platUrl) {
   title.textContent = `${well.api} ${well.name}`;
   container.replaceChildren();
+  renderPlats(container, well, platUrl);
   if (!well.surveys.length) {
-    container.append(el("p", {}, `No survey extracted yet. Status: ${well.survey_status}.`));
+    container.append(el("p", {}, `No survey extracted. Status: ${well.survey_status}.`));
     for (const m of well.messages) container.append(el("p", { class: "muted" }, m));
     return;
   }
@@ -81,4 +96,37 @@ export function renderSurveys(container, title, well) {
     }
     container.append(el("div", { class: "table-wrap" }, el("table", { class: "grid" }, el("thead", {}, head), body)));
   });
+}
+
+function renderPlats(container, well, platUrl) {
+  if (!well.plats.length) return;
+  container.append(el("h3", {}, `Plat checks (${checkSummary(well.plat_checks) || "none"})`));
+  if (well.plat_checks.length) {
+    const head = el("tr", {}, ...["Check", "Plat", "Other source", "Diff (ft)", "Tol (ft)", "Result", "Note"].map((h) => el("th", {}, h)));
+    const body = el("tbody");
+    for (const c of well.plat_checks) {
+      const result = c.ok === null ? "-" : c.ok ? "ok" : "check";
+      body.append(
+        el("tr", {},
+          el("td", {}, c.item), el("td", {}, c.plat_value), el("td", {}, c.other_value),
+          el("td", { class: "num" }, fmt(c.difference_ft, 0)), el("td", { class: "num" }, fmt(c.tolerance_ft, 0)),
+          el("td", { class: `check-${c.ok === null ? "none" : c.ok ? "ok" : "bad"}` }, result),
+          el("td", { class: "wrap" }, c.note)),
+      );
+    }
+    container.append(el("div", { class: "table-wrap" }, el("table", { class: "grid" }, el("thead", {}, head), body)));
+  }
+  const gallery = el("div", { class: "plats" });
+  well.plats.forEach((p, i) => {
+    const kind = p.as_drilled === true ? "as drilled" : p.as_drilled === false ? "permit" : "type not stated";
+    const pts = p.points.map((q) => `${q.label}: ${q.lat ?? "?"}, ${q.lon ?? "?"}${q.md ? `, MD ${q.md}` : ""}`).join(" | ");
+    gallery.append(
+      el("figure", {},
+        el("a", { href: platUrl(i, "pdf"), target: "_blank", rel: "noopener" },
+          el("img", { src: platUrl(i, "png"), alt: `Plat ${i + 1} of ${well.api}`, loading: "lazy" })),
+        el("figcaption", {}, `Plat ${i + 1}: ${p.title} (${kind}), datum ${p.datum ?? "not printed"}. ${pts}`,
+          ...p.notes.map((n) => el("div", { class: "muted" }, n)))),
+    );
+  });
+  container.append(gallery);
 }

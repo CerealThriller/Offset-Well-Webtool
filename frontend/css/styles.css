@@ -122,6 +122,14 @@ table.grid { border-collapse: collapse; width: 100%; font-size: 12px; }
 .survey-view h2 { font-size: 15px; margin: 4px 0; }
 .survey-view h3 { font-size: 13px; margin: 12px 0 2px; }
 
+.check-ok { color: #2e7d32; font-weight: 600; }
+.check-bad { color: var(--error); font-weight: 600; }
+.grid td.wrap { white-space: normal; min-width: 240px; }
+.plats { display: flex; gap: 12px; flex-wrap: wrap; margin: 8px 0; }
+.plats figure { margin: 0; width: 320px; }
+.plats img { width: 100%; border: 1px solid var(--border); background: #fff; }
+.plats figcaption { font-size: 12px; }
+
 .log { padding: 8px 12px; }
 .log pre { max-height: 240px; overflow: auto; font-size: 11px; margin: 6px 0 0; }
 

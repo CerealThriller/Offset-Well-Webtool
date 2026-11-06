@@ -190,6 +190,12 @@ def rotate_grid_to_true(azi_grid: float, convergence_deg: float) -> float:
     return (azi_grid + convergence_deg) % 360.0
 
 
+def rotate_offsets(n: float, e: float, convergence_deg: float) -> tuple[float, float]:
+    """Rotate grid-north (N, E) offsets to true north. True azimuth = grid azimuth + convergence."""
+    c = math.radians(convergence_deg)
+    return n * math.cos(c) - e * math.sin(c), n * math.sin(c) + e * math.cos(c)
+
+
 def haversine_ft(a: LatLon, b: LatLon) -> float:
     r_ft = 20_902_231.0
     p1, p2 = math.radians(a.lat), math.radians(b.lat)

@@ -24,6 +24,7 @@ class Settings:
     classify_model: str = os.environ.get("OWT_CLASSIFY_MODEL", "claude-opus-5-5")
     classify_effort: str = os.environ.get("OWT_CLASSIFY_EFFORT", "low")
     extract_effort: str = os.environ.get("OWT_EXTRACT_EFFORT", "high")
+    plat_effort: str = os.environ.get("OWT_PLAT_EFFORT", "high")
     max_pages_per_well: int = int(os.environ.get("OWT_MAX_PAGES_PER_WELL", "400"))
     max_offset_wells: int = int(os.environ.get("OWT_MAX_OFFSET_WELLS", "300"))
     worker_threads: int = int(os.environ.get("OWT_WORKER_THREADS", "4"))

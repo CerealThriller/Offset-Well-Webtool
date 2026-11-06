@@ -29,9 +29,10 @@ from pydantic import BaseModel, Field
 from .config import settings
 from .connectors.registry import get_connector, states_for_area
 from .edm.parser import ParseOptions, parse_edm
-from .extraction.pipeline import extract_surveys
+from .extraction.pipeline import DocumentResult, process_document
 from .geo.buffer import BufferMode, build_search_area, distance_to_plans, polygon_to_geojson
 from .models import OffsetWell, PlannedWell
+from .survey.verify import verify_well
 
 log = logging.getLogger(__name__)
 
@@ -213,6 +214,9 @@ def _find_docs(job_id: str, key: str) -> None:
                 w.survey_status = f"{n} survey document(s)" + (" - manual download" if manual else "")
             else:
                 w.survey_status = "no online survey"
+            n_plat = sum(d.likely_plat for d in docs)
+            if n_plat:
+                w.survey_status += f", {n_plat} plat(s)"
             store.save(job)
     except Exception as e:
         with store.lock(job_id):
@@ -240,6 +244,23 @@ def start_extract(job_id: str, keys: list[str]) -> None:
     threading.Thread(target=run, daemon=True).start()
 
 
+def _status_text(w: OffsetWell) -> str:
+    parts = [f"{len(w.surveys)} survey(s) extracted" if w.surveys else "no survey table found"]
+    if w.plats:
+        parts.append(f"{len(w.plats)} plat(s)")
+    return ", ".join(parts)
+
+
+def _apply_results(job: Job, w: OffsetWell, sources: set[str], surveys: list, plats: list) -> None:
+    """Replace earlier results from the same sources, add the new ones, and run the plat checks."""
+    with store.lock(job.id):
+        w.surveys = [s for s in w.surveys if s.source not in sources] + surveys
+        w.plats = [p for p in w.plats if p.source not in sources] + plats
+        w.plat_checks = verify_well(w)
+        w.survey_status = _status_text(w)
+        store.save(job)
+
+
 def _extract_well(job_id: str, key: str) -> None:
     job = store.get(job_id)
     assert job is not None
@@ -248,28 +269,37 @@ def _extract_well(job_id: str, key: str) -> None:
     if w.state == "NM":
         docs = [d for d in w.documents if d.access == "direct"]
     else:
-        docs = [d for d in w.documents if d.likely_survey and d.access == "direct"]
+        docs = [d for d in w.documents if (d.likely_survey or d.likely_plat) and d.access == "direct"]
     if not docs:
         return
     with store.lock(job_id):
         w.survey_status = "extracting"
         store.save(job)
-    found = []
+    surveys, plats, sources = [], [], set()
     for d in docs:
         try:
             data = conn.download(d)
-            found.extend(extract_surveys(data, d.url, progress=lambda m: store.note(job, f"{w.api}: {m}")))
+            res = process_document(
+                data,
+                d.url,
+                title=d.title,
+                is_plat=d.likely_plat and not d.likely_survey,
+                progress=lambda m: store.note(job, f"{w.api}: {m}"),
+            )
+            surveys.extend(res.surveys)
+            plats.extend(res.plats)
+            sources.add(d.url)
         except Exception as e:
             store.note(job, f"{w.api}: {d.title}: {e}")
             w.messages.append(f"{d.title}: {e}")
-    with store.lock(job_id):
-        w.surveys.extend(found)
-        w.survey_status = f"{len(w.surveys)} survey(s) extracted" if w.surveys else "no survey table found"
-        store.save(job)
+    _apply_results(job, w, sources, surveys, plats)
 
 
 def add_uploaded_document(job_id: str, key: str, data: bytes, file_name: str) -> None:
-    """Extract a document that the user downloaded by hand (for example from ECMC)."""
+    """Extract a document that the user downloaded by hand (for example from ECMC).
+
+    A file name with "plat" or "C-102" is read as a plat without page classification.
+    """
     job = store.get(job_id)
     assert job is not None
     w = _well(job, key)
@@ -277,14 +307,20 @@ def add_uploaded_document(job_id: str, key: str, data: bytes, file_name: str) ->
     store.note(job, f"{w.api}: extracting uploaded file {file_name}")
 
     def run() -> None:
+        source = f"upload: {file_name}"
         try:
-            found = extract_surveys(data, f"upload: {file_name}", progress=lambda m: store.note(job, f"{w.api}: {m}"))
+            res = process_document(
+                data,
+                source,
+                title=file_name,
+                is_plat="PLAT" in file_name.upper() or "C-102" in file_name.upper(),
+                progress=lambda m: store.note(job, f"{w.api}: {m}"),
+            )
         except Exception as e:
-            found = []
+            res = DocumentResult()
             store.note(job, f"{w.api}: upload {file_name}: {e}")
+        _apply_results(job, w, {source}, res.surveys, res.plats)
         with store.lock(job_id):
-            w.surveys.extend(found)
-            w.survey_status = f"{len(w.surveys)} survey(s) extracted" if w.surveys else "no survey table found"
             job.status = "done"
             store.save(job)
 

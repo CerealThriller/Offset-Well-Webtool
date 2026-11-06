@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Optional
 
 from shapely.geometry import Polygon
 
@@ -13,29 +14,37 @@ from .base import PoliteClient
 def query_layer(
     http: PoliteClient,
     layer_url: str,
-    area: Polygon,
+    area: Optional[Polygon],
     out_fields: str = "*",
     where: str = "1=1",
     page_size: int = 1000,
     max_records: int = 20000,
     cache_s: float = 86400,
 ) -> list[dict]:
-    """Return all features of a layer that intersect the polygon.
+    """Return all features of a layer that intersect the polygon and match the where clause.
+
+    With area=None, only the where clause filters the features.
 
     Output geometry is in WGS84 (EPSG:4326). Pages through results with
     resultOffset when the server sets exceededTransferLimit.
     """
-    geom = json.dumps(polygon_to_esri(area))
+    spatial = (
+        {
+            "geometry": json.dumps(polygon_to_esri(area)),
+            "geometryType": "esriGeometryPolygon",
+            "inSR": "4269",
+            "spatialRel": "esriSpatialRelIntersects",
+        }
+        if area is not None
+        else {}
+    )
     feats: list[dict] = []
     offset = 0
     while True:
         params = {
             "f": "json",
             "where": where,
-            "geometry": geom,
-            "geometryType": "esriGeometryPolygon",
-            "inSR": "4269",
-            "spatialRel": "esriSpatialRelIntersects",
+            **spatial,
             "outFields": out_fields,
             "returnGeometry": "true",
             "outSR": "4326",

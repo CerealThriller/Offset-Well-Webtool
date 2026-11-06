@@ -11,7 +11,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
-from shapely.geometry import Polygon
+from shapely.geometry import LineString, Point, Polygon
 
 from ..config import settings
 from ..models import OffsetWell, Survey, SurveyDocument
@@ -147,6 +147,14 @@ SURVEY_KEYWORDS = (
 )
 
 
+PLAT_KEYWORDS = ("PLAT", "C-102", "C102", "LOCATION DRAWING", "WELL LOCATION")
+
+
+def looks_like_plat(title: str) -> bool:
+    t = title.upper()
+    return any(k in t for k in PLAT_KEYWORDS) and "DIRECTIONAL" not in t
+
+
 def looks_like_survey(title: str) -> bool:
     t = title.upper()
     if "CERTIFICATION" in t or "CERTIFICATE" in t:
@@ -154,3 +162,12 @@ def looks_like_survey(title: str) -> bool:
     if "PLAT" in t and "SURVEY" in t and "DIRECTION" not in t:
         return False  # a land survey plat, not a wellbore survey
     return any(k in t for k in SURVEY_KEYWORDS)
+
+
+def well_touches_area(well: OffsetWell, area: Polygon) -> bool:
+    """True if the surface, the bottom hole, or the straight line between them is in the area."""
+    s = well.surface_nad83
+    if well.bottom_hole_nad83 is None:
+        return area.intersects(Point(s.lon, s.lat))
+    b = well.bottom_hole_nad83
+    return area.intersects(LineString([(s.lon, s.lat), (b.lon, b.lat)]))

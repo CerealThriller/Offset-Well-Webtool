@@ -1,6 +1,12 @@
 """Texas Railroad Commission (RRC).
 
-Well locations: RRC public GIS viewer service (layer 1 "Well Locations").
+Well locations: RRC public GIS viewer service.
+- Layer 1 "Well Locations": one point for each API. For a horizontal or
+  directional well, RRC places this point at the bottom hole.
+- Layer 9 "Horiz/Dir Surface Locations": the surface location of each
+  horizontal or directional well.
+The connector joins the two layers by API, so a well whose surface or
+bottom hole is in the search area is found.
 Documents: RRC Online Completions query. Each completion packet lists its
 attachments by label (for example "Directional Survey", "W-12" inclination
 report). Attachment images download as PDF from webapps.rrc.state.tx.us.
@@ -22,11 +28,12 @@ from shapely.geometry import Polygon
 
 from ..models import LatLon, OffsetWell, SurveyDocument
 from .arcgis import query_layer
-from .base import StateConnector, looks_like_survey
+from .base import StateConnector, looks_like_plat, looks_like_survey, well_touches_area
 
 GIS = "https://gis.rrc.texas.gov/server/rest/services/rrc_public/RRC_Public_Viewer_Srvs/MapServer"
 CMPL = "https://webapps.rrc.texas.gov/CMPL/publicSearchAction.do"
 SKIP_SYMBOLS = ("PERMITTED", "CANCELED", "CANCELLED")
+LATERAL_REACH_DEG = 0.05  # about 3.5 miles
 
 
 class TexasConnector(StateConnector):
@@ -37,32 +44,41 @@ class TexasConnector(StateConnector):
     notes = "Surveys come from completion packet attachments. Paper-era wells need a records request."
 
     def find_wells(self, area: Polygon) -> list[OffsetWell]:
-        wells: dict[str, OffsetWell] = {}
-        horizontal = {
-            f["attributes"].get("API")
-            for f in query_layer(self.http, f"{GIS}/9", area, out_fields="API")
-        }
-        for f in query_layer(self.http, f"{GIS}/1", area):
-            a, g = f["attributes"], f.get("geometry") or {}
-            api8 = (a.get("API") or "").strip()
-            if not api8 or "x" not in g:
-                continue
-            api = f"42-{api8[:3]}-{api8[3:]}"
+        points = {_api8(f): f for f in query_layer(self.http, f"{GIS}/1", area) if _api8(f)}
+        # Surfaces up to LATERAL_REACH_DEG outside the area can have laterals that cross it.
+        wide = area.buffer(LATERAL_REACH_DEG)
+        surfaces = {_api8(f): f for f in query_layer(self.http, f"{GIS}/9", wide) if _api8(f)}
+        # Join across the layers: a lateral can reach into the area from a
+        # surface outside it, or the reverse.
+        missing_surface = [a for a in points if a not in surfaces]
+        missing_point = [a for a in surfaces if a not in points]
+        surfaces.update({_api8(f): f for f in _by_api(self.http, f"{GIS}/9", missing_surface)})
+        points.update({_api8(f): f for f in _by_api(self.http, f"{GIS}/1", missing_point)})
+
+        wells = []
+        for api8, f in points.items():
+            a = f["attributes"]
             symbol = a.get("GIS_SYMBOL_DESCRIPTION") or ""
+            point = _latlon(f)
+            if point is None:
+                continue
+            surf = _latlon(surfaces[api8]) if api8 in surfaces else None
             w = OffsetWell(
                 state=self.code,
-                api=api,
+                api=f"42-{api8[:3]}-{api8[3:]}",
                 name=f"#{a.get('GIS_WELL_NUMBER') or ''}".strip(),
                 status=symbol,
-                trajectory="horizontal/directional" if api8 in horizontal else "",
-                surface_nad83=LatLon(lat=a.get("GIS_LAT83") or g["y"], lon=a.get("GIS_LONG83") or g["x"]),
+                trajectory="horizontal/directional" if surf else "",
+                surface_nad83=surf or point,
+                bottom_hole_nad83=point if surf else None,
                 detail_url=f"https://gis.rrc.texas.gov/GISViewer/index.html?api={api8}",
             )
+            if not well_touches_area(w, area):
+                continue
             if any(s in symbol.upper() for s in SKIP_SYMBOLS):
                 w.survey_status = "not drilled"
-            # Several symbols can share one API (sidetracks). Keep the first.
-            wells.setdefault(api, w)
-        return list(wells.values())
+            wells.append(w)
+        return wells
 
     # ---- documents -------------------------------------------------------
 
@@ -105,6 +121,28 @@ class TexasConnector(StateConnector):
             client.close()
 
 
+def _api8(feature: dict) -> str:
+    return (feature["attributes"].get("API") or "").strip()
+
+
+def _latlon(feature: dict) -> Optional[LatLon]:
+    a, g = feature["attributes"], feature.get("geometry") or {}
+    lat, lon = a.get("GIS_LAT83") or g.get("y"), a.get("GIS_LONG83") or g.get("x")
+    if lat is None or lon is None:
+        return None
+    return LatLon(lat=lat, lon=lon)
+
+
+def _by_api(http, layer_url: str, apis: list[str], chunk: int = 100) -> list[dict]:
+    out: list[dict] = []
+    for i in range(0, len(apis), chunk):
+        part = [a for a in apis[i : i + chunk] if a.isdigit()]
+        if part:
+            where = "API IN (" + ",".join(f"'{a}'" for a in part) + ")"
+            out.extend(query_layer(http, layer_url, None, where=where))
+    return out
+
+
 def _text(el) -> str:
     return re.sub(r"\s+", " ", el.text_content()).strip()
 
@@ -143,6 +181,7 @@ def parse_packet_attachments(page: str) -> list[SurveyDocument]:
                 title=label,
                 doc_type=label,
                 likely_survey=looks_like_survey(label),
+                likely_plat=looks_like_plat(label),
             )
         )
     return out

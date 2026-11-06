@@ -113,7 +113,11 @@ async function loadJob(id) {
   state.job = job;
   remember(id);
   if (changedJob) {
-    state.selected = new Set(job.offsets.filter((w) => w.documents.some((d) => d.likely_survey) || w.state === "NM").map((w) => w.key));
+    state.selected = new Set(
+      job.offsets
+        .filter((w) => w.documents.some((d) => d.likely_survey || d.likely_plat) || w.state === "NM")
+        .map((w) => w.key),
+    );
     wellMap.show(job);
   } else if (!RUNNING.has(job.status)) {
     wellMap.show(job);
@@ -133,6 +137,9 @@ function render() {
   const exp = $("#export-btn");
   exp.href = api.exportUrl(job.id);
   exp.classList.toggle("disabled", !job.offsets.length);
+  const plats = $("#plats-btn");
+  plats.href = api.platsUrl(job.id);
+  plats.classList.toggle("disabled", !job.offsets.some((w) => w.plats.length));
   renderOffsetTable($("#offset-table tbody"), job, state.selected, {
     select: selectWell,
     upload: (key) => {
@@ -155,7 +162,7 @@ function showSurveys(key) {
   const well = state.job.offsets.find((w) => w.key === key);
   if (!well) return;
   $("#survey-view").hidden = false;
-  renderSurveys($("#survey-body"), $("#survey-title"), well);
+  renderSurveys($("#survey-body"), $("#survey-title"), well, (i, ext) => api.platUrl(state.job.id, key, i, ext));
 }
 
 async function extractSelected() {

@@ -1,14 +1,18 @@
 # Offset Well Webtool
 
-Offset Well Webtool is a web app for well planning. It reads a Landmark Compass EDM export of planned wells. It finds the offset wells inside a buffer around the plans. Then it gets the directional and inclination-only surveys of those wells from public state commission records. The output is one Excel workbook with one tab for each well.
+Offset Well Webtool is a web app for well planning. It reads a Landmark Compass EDM export of planned wells. It finds the offset wells inside a buffer around the plans. Then it gets the directional and inclination-only surveys and the location plats of those wells from public state commission records. It checks each plat against the state location and the survey. The output is one Excel workbook with one tab for each well.
 
 ## Supported states
 
-| State | Agency | Well locations | Survey documents | Download |
-|---|---|---|---|---|
-| TX | Railroad Commission of Texas | RRC public GIS service | Completion packet attachments ("Directional Survey", W-12) | Automatic |
-| NM | Oil Conservation Division | OCD public ArcGIS service | OCD imaged well file (all PDFs) | Automatic |
-| CO | Energy & Carbon Management Commission | ECMC well and bottom-hole shapefiles | ECMC facility document list | Manual upload |
+| State | Agency | Well locations | Survey documents | Plats | Download |
+|---|---|---|---|---|---|
+| TX | Railroad Commission of Texas | RRC public GIS service (surface and bottom hole) | Completion packet attachments ("Directional Survey", W-12) | "Plat" packet attachment | Automatic |
+| NM | Oil Conservation Division | OCD public ArcGIS service (surface) | OCD imaged well file (all PDFs) | Form C-102 pages in the well file | Automatic |
+| CO | Energy & Carbon Management Commission | ECMC well and bottom-hole shapefiles | ECMC facility document list | Plat documents in the same list | Manual upload |
+
+The app finds a well if its surface, its bottom hole, or the straight line between them is in the search area. Thus a lateral that crosses the area from outside is found. New Mexico publishes surface locations only, so there the surface must be in the area.
+
+In the RRC GIS service, the "Well Locations" point of a horizontal or directional well is at the bottom hole. The app takes the surface location from the "Horiz/Dir Surface Locations" layer.
 
 The app lists 18 more oil and gas states as "planned", with a link to each public portal. To add a state, see [Add a state](#add-a-state).
 
@@ -23,9 +27,10 @@ Texas completions before the online system (about 2008 and older) are paper reco
 3. It makes the search area: a buffer around each wellbore path, or around the whole pad.
 4. It asks each state that touches the search area for its wells. It removes wells that were never drilled.
 5. It lists the survey documents of each offset well. This step is free.
-6. You select the wells. The app downloads their documents and reads the survey tables.
+6. You select the wells. The app downloads their documents. It reads the survey tables and the plats.
 7. A minimum curvature check compares each row to the reported TVD, N/S and E/W. The app flags each row that does not agree.
-8. You download the Excel workbook.
+8. The plat checks compare the plat locations to the state GIS and to the survey.
+9. You download the Excel workbook and, if you want, a ZIP file of all plats.
 
 ### Survey extraction
 
@@ -48,6 +53,34 @@ The QC step recalculates every station with minimum curvature. A flag means one 
 A single misread value moves all later calculated positions. For that case, the app flags only the first row and adds a note.
 
 Do not use a flagged row without a check against the source page. The workbook shows the source URL and page numbers of each survey.
+
+## Plats
+
+The app keeps each plat as its own PDF file. The app shows the plat image next to the survey of the well. The Excel tab of each well holds the plat image, the plat points, and the plat checks.
+
+The vision model reads these values from each plat:
+
+- The labeled points: SHL, KOP, PP, FTP, LTP and BHL
+- Latitude, longitude, state plane X and Y, and MD of each point, if printed
+- The datum and the coordinate system
+- The plat type: as-drilled or permit
+
+The app compares the latest as-drilled plat with these sources:
+
+| Check | Tolerance |
+|---|---|
+| Plat SHL against the state GIS surface location | 50 ft |
+| Plat BHL against the state GIS bottom hole (TX and CO) | 100 ft |
+| Plat BHL against the last survey station, placed from the plat SHL | 100 ft |
+| Plat BHL MD against the last survey MD | 150 ft |
+
+For a grid north survey, the app rotates the survey offsets by the grid convergence printed on the survey report. Without the convergence, the bottom-hole check can be wrong by hundreds of feet, and the check says so.
+
+If the plat does not print a datum, the app uses the datum that puts the SHL nearer to the state location. If a difference goes away with the other datum, the check notes a possible NAD27/NAD83 mix-up.
+
+Without `ANTHROPIC_API_KEY`, the app still downloads and shows Texas plats. It does not read their points, so the checks show "not read". New Mexico plats need the API key, because the app finds the C-102 pages with the vision model.
+
+For Colorado, upload the plat PDF on the well row. If the file name contains "plat" or "C-102", the app reads the file as a plat directly.
 
 ## EDM input
 
@@ -122,6 +155,7 @@ Do not lower `OWT_REQUEST_INTERVAL_S` below 1 second. The state sites are public
 | `OWT_CLASSIFY_MODEL` | `claude-opus-5-5` | Model that finds survey pages |
 | `OWT_CLASSIFY_EFFORT` | `low` | Effort for page classification |
 | `OWT_EXTRACT_EFFORT` | `high` | Effort for table extraction |
+| `OWT_PLAT_EFFORT` | `high` | Effort for plat reading |
 | `OWT_REQUEST_INTERVAL_S` | `1.0` | Minimum seconds between requests to one host |
 | `OWT_WORKER_THREADS` | `4` | Parallel wells for documents and extraction |
 | `OWT_MAX_OFFSET_WELLS` | `300` | The app keeps the nearest wells up to this count |
@@ -134,7 +168,7 @@ To lower the classification cost, set `OWT_CLASSIFY_MODEL` to a smaller model. N
 
 1. Create `backend/app/connectors/<state>.py` with a subclass of `StateConnector`.
 2. Write `find_wells(area)`. For an ArcGIS service, use `query_layer` in `arcgis.py`.
-3. Write `find_documents(well)`. Set `likely_survey` on each document from its title.
+3. Write `find_documents(well)`. Set `likely_survey` and `likely_plat` on each document from its title.
 4. If the state publishes surveys as data, write `digital_surveys(well)`.
 5. Add the class to `IMPLEMENTED` in `registry.py`, and remove the state from `PLANNED`.
 6. Save one real page of each state site as a test fixture, and add a parser test.
@@ -149,6 +183,7 @@ backend/app/
   connectors/            One module for each state, plus the registry
   extraction/            Page images, text-layer tables, Claude vision, pipeline
   survey/mincurve.py     Minimum curvature and QC flags
+  survey/verify.py       Plat checks against state GIS and survey
   export/excel.py        Excel workbook
   jobs.py                Background jobs and job store
   main.py                HTTP API and static frontend
@@ -162,4 +197,4 @@ cd backend
 pytest
 ```
 
-The tests use saved pages from the TX, NM and CO sites, and a real Texas MWD survey PDF. They do not call the state sites or the Claude API.
+The tests use saved pages from the TX, NM and CO sites, and the real MWD survey and as-completed plat of Scrapfile North #1H (42-301-34197). They do not call the state sites or the Claude API.

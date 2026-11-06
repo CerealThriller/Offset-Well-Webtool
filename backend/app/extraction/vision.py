@@ -37,6 +37,7 @@ CLASSIFY_BATCH = 8
 class PageKind(str, Enum):
     DIRECTIONAL = "directional_survey"
     INCLINATION = "inclination_only"
+    PLAT = "plat"
     OTHER = "other"
 
 
@@ -79,6 +80,27 @@ class SurveyPageData(BaseModel):
     notes: Optional[str] = Field(None, description="Anything the engineer must know, such as a tie-in or a sidetrack")
 
 
+class PlatPointOut(BaseModel):
+    label: str = Field(description="SHL, KOP, PP, FTP, LTP, BHL, or the label printed on the plat")
+    lat: Optional[float] = Field(None, description="Latitude in decimal degrees, + north")
+    lon: Optional[float] = Field(None, description="Longitude in decimal degrees, negative west")
+    x: Optional[float] = Field(None, description="State plane X (easting) as printed")
+    y: Optional[float] = Field(None, description="State plane Y (northing) as printed")
+    md: Optional[float] = Field(None, description="Measured depth at this point, if printed")
+    footage: Optional[str] = Field(None, description="Section line calls, for example 777' FSL & 809' FWL")
+
+
+class PlatPageData(BaseModel):
+    is_plat: bool
+    as_drilled: Optional[bool] = Field(None, description="True for as-drilled or as-completed, False for a permit plat")
+    datum: Literal["NAD27", "NAD83", "WGS84", "unknown"]
+    crs: Optional[str] = Field(None, description="State plane zone or other coordinate system, as printed")
+    well_name: Optional[str] = None
+    api_number: Optional[str] = None
+    points: list[PlatPointOut]
+    notes: Optional[str] = None
+
+
 # ---- prompts ---------------------------------------------------------------
 
 CLASSIFY_SYSTEM = (
@@ -88,8 +110,22 @@ CLASSIFY_SYSTEM = (
     "directional survey report, survey calculation sheet).\n"
     "- inclination_only: a deviation or inclination record with depth and inclination but no azimuth "
     "(for example Texas Form W-12, a drift survey, a totco record, a 'deviation report').\n"
-    "- other: anything else, including plats, permits, logs, cement reports, and cover letters.\n"
+    "- plat: a well location plat drawing that shows the well location on the section (Texas plat, New "
+    "Mexico Form C-102, Colorado well location plat, as-drilled plat).\n"
+    "- other: anything else, including permits, logs, cement reports, and cover letters.\n"
     "A cover page or certification for a survey that has no rows of data is 'other'."
+)
+
+PLAT_SYSTEM = (
+    "You read well location plats from scanned well records for a drilling engineer. Copy the values exactly "
+    "as printed. Do not calculate or estimate a value that the plat does not print. Rules:\n"
+    "- Return one point for each labeled location: surface hole (SHL), kick-off point (KOP), penetration "
+    "point (PP), first take point (FTP), last take point (LTP), bottom hole (BHL). Use these short labels when "
+    "the meaning is clear, and keep both labels when one point has two (for example 'BHL/LTP').\n"
+    "- Convert degree-minute-second latitude and longitude to decimal degrees. West longitude is negative.\n"
+    "- datum: the horizontal datum printed for the coordinates (NAD27, NAD83 or WGS84), else unknown.\n"
+    "- A plat page often prints a table of points. Read the table and the callout boxes.\n"
+    "- If the page is not a plat, set is_plat to false and return no points."
 )
 
 EXTRACT_SYSTEM = (
@@ -144,6 +180,10 @@ def _parse(client: anthropic.Anthropic, *, model: str, effort: str, system: str,
         raise VisionError(f"Claude API error {e.status_code}: {e.message}") from e
     except anthropic.APIConnectionError as e:
         raise VisionError(f"Cannot reach the Claude API: {e}") from e
+    except TypeError as e:
+        if "authentication" in str(e).lower():
+            raise VisionError("No Claude API credentials. Set ANTHROPIC_API_KEY to read scanned pages.") from e
+        raise
     if resp.stop_reason == "refusal":
         raise VisionError("The model declined this page.")
     if resp.stop_reason == "max_tokens":
@@ -158,11 +198,16 @@ def _parse(client: anthropic.Anthropic, *, model: str, effort: str, system: str,
 _TEXT_SURVEY = re.compile(r"\b(AZIMUTH|AZM|INCLINATION|INCL?\b|DEVIATION|DOGLEG|MEASURED\s+DEPTH)", re.I)
 
 
+_TEXT_PLAT = re.compile(r"\bC-102\b|ACREAGE DEDICATION PLAT|WELL LOCATION PLAT|AS[- ]DRILLED PLAT", re.I)
+
+
 def text_layer_kind(page: PageImage) -> Optional[PageKind]:
     """Decide from the text layer alone, when the page has one."""
     t = page.text
     if len(t.strip()) < 80:
         return None  # a scan, no usable text
+    if _TEXT_PLAT.search(t):
+        return PageKind.PLAT
     hits = {m.group(1).upper() for m in _TEXT_SURVEY.finditer(t)}
     numbers = len(re.findall(r"\d+\.\d+", t))
     if numbers < 20:
@@ -228,5 +273,19 @@ def extract_page(page: PageImage, kind: PageKind, client: Optional[anthropic.Ant
         system=EXTRACT_SYSTEM,
         content=content,
         schema=SurveyPageData,
+        max_tokens=16000,
+    )
+
+
+def extract_plat(page: PageImage, client: Optional[anthropic.Anthropic] = None) -> PlatPageData:
+    client = client or _client()
+    content = [_image_block(page.png), {"type": "text", "text": "Read the locations on this well plat."}]
+    return _parse(
+        client,
+        model=settings.vision_model,
+        effort=settings.plat_effort,
+        system=PLAT_SYSTEM,
+        content=content,
+        schema=PlatPageData,
         max_tokens=16000,
     )

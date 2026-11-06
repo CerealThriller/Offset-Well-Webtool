@@ -195,3 +195,20 @@ def parse_text_pdf(data: bytes, pages: list[int]) -> dict[int, SurveyPageData]:
                 if res:
                     out[n] = res
     return out
+
+
+def grid_convergence_from_text(data: bytes, pages: list[int]) -> Optional[float]:
+    """Return the grid convergence printed in a report header, for example "Grid Convergence: -1.63 deg"."""
+    with pymupdf.open(stream=data, filetype="pdf") as doc:
+        for n in pages:
+            if not 1 <= n <= doc.page_count:
+                continue
+            lines = _lines([_Word(*w[:5]) for w in doc[n - 1].get_text("words")])
+            for ln in lines:
+                for i, w in enumerate(ln):
+                    if w.text.upper().startswith("CONVERGENCE"):
+                        for nxt in ln[i + 1 :]:
+                            v = _num(nxt.text)
+                            if v is not None and abs(v) < 10:
+                                return v
+    return None

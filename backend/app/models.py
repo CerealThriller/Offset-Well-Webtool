@@ -54,6 +54,7 @@ class Survey(BaseModel):
     source: str = ""  # URL, file name or "EDM"
     source_pages: list[int] = Field(default_factory=list)
     company: Optional[str] = None
+    grid_convergence_deg: Optional[float] = None  # from the report header, if printed
     notes: list[str] = Field(default_factory=list)
 
     @computed_field  # type: ignore[prop-decorator]
@@ -90,7 +91,47 @@ class SurveyDocument(BaseModel):
     doc_type: str = ""  # for example "Directional Survey", "W-12"
     date: Optional[str] = None
     likely_survey: bool = False
+    likely_plat: bool = False
     access: str = "direct"  # "direct" or "manual" (site blocks automated download)
+
+
+class PlatPoint(BaseModel):
+    """One labeled location on a plat, as printed."""
+
+    label: str  # SHL, KOP, PP, FTP, LTP, BHL, or the plat's own label
+    lat: Optional[float] = None  # decimal degrees on the plat datum
+    lon: Optional[float] = None
+    x: Optional[float] = None  # state plane coordinates on the plat
+    y: Optional[float] = None
+    md: Optional[float] = None
+    footage: Optional[str] = None  # for example "777' FSL & 809' FWL"
+
+
+class Plat(BaseModel):
+    """A well location plat (Texas plat, New Mexico C-102, Colorado location plat)."""
+
+    file_id: str  # sha256 of the stored one-plat PDF
+    source: str
+    title: str = ""
+    pages: list[int] = Field(default_factory=list)  # pages in the source document
+    read: bool = False  # True if the location data was read from the plat
+    as_drilled: Optional[bool] = None
+    datum: Optional[str] = None  # NAD27, NAD83, WGS84 or None if not printed
+    crs: Optional[str] = None  # for example "Texas Central 4203"
+    points: list[PlatPoint] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class PlatCheck(BaseModel):
+    """One comparison between a plat and another source."""
+
+    item: str
+    plat_value: str
+    other_value: str
+    difference_ft: Optional[float] = None
+    tolerance_ft: Optional[float] = None
+    ok: Optional[bool] = None  # None: not enough data to compare
+    note: str = ""
 
 
 class OffsetWell(BaseModel):
@@ -110,6 +151,8 @@ class OffsetWell(BaseModel):
     detail_url: Optional[str] = None
     documents: list[SurveyDocument] = Field(default_factory=list)
     surveys: list[Survey] = Field(default_factory=list)
+    plats: list[Plat] = Field(default_factory=list)
+    plat_checks: list[PlatCheck] = Field(default_factory=list)
     survey_status: str = "not searched"
     messages: list[str] = Field(default_factory=list)
 
