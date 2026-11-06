@@ -120,6 +120,36 @@ Each job shows the warnings of the parser. Check them after the first upload of 
 
 The test file `backend/tests/fixtures/sample_edm.xml` is synthetic. Send a real export (with names removed) to test the parser against your EDM template.
 
+## Test from GitHub
+
+### Run the app in GitHub Codespaces
+
+A codespace is a cloud computer that GitHub starts from this repository. The app runs there, and you use it in your browser. You install nothing on your computer.
+
+1. Open the repository on GitHub.
+2. Select the branch that you want to test.
+3. Click **Code**, then the **Codespaces** tab, then **Create codespace on <branch>**.
+4. Wait until the setup finishes (about 3 minutes the first time).
+5. Open the **Ports** tab and click the globe icon on port 8000. The app opens in a new browser tab.
+6. Upload an EDM file and run a search.
+
+If the app does not open, open the terminal in the codespace and run `bash .devcontainer/start.sh`. The log is in `/tmp/owt.log`.
+
+To read scanned pages, add the secret `ANTHROPIC_API_KEY`. Go to GitHub **Settings > Codespaces > Secrets**, add the secret, and give it access to this repository. Then restart the codespace. Without the key, the search, the text-layer surveys and the plat downloads work.
+
+Stop the codespace when you finish. A running codespace uses your monthly Codespaces hours.
+
+Port 8000 is private by default. Only you can open it. Do not make the port public. The app has no login page.
+
+### Automated tests on each push
+
+The workflow `.github/workflows/tests.yml` runs on each push and pull request:
+
+- `pytest`: the test suite (no calls to state sites or the Claude API)
+- `docker`: builds the Docker image, starts it, and checks `/api/health`
+
+To see the results, open the **Actions** tab of the repository. To run the workflow by hand, select **Tests**, then **Run workflow**.
+
 ## Run on a workstation
 
 You need Python 3.12 or later.

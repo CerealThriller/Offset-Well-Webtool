@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - name: Install
+        run: pip install -r requirements-dev.txt
+      - name: Install NADCON grids
+        run: |
+          mkdir -p ~/.local/share/proj
+          curl -fsSL -o ~/.local/share/proj/us_noaa_conus.tif https://cdn.proj.org/us_noaa_conus.tif
+      - name: Run tests
+        run: pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t offset-well-webtool .
+      - name: Start the container and check health
+        run: |
+          docker run -d --name owt -p 8000:8000 offset-well-webtool
+          for i in $(seq 1 30); do
+            if curl -fs localhost:8000/api/health; then exit 0; fi
+            sleep 2
+          done
+          docker logs owt
+          exit 1
