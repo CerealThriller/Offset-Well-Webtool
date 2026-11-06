@@ -1,6 +1,6 @@
 # Offset Well Webtool
 
-Offset Well Webtool is a web app for well planning. It reads a Landmark Compass EDM export of planned wells. It finds the offset wells inside a buffer around the plans. Then it gets the directional and inclination-only surveys and the location plats of those wells from public state commission records. It checks each plat against the state location and the survey. The output is one Excel workbook with one tab for each well.
+Offset Well Webtool is a web app for well planning. It reads a Landmark Compass EDM export of planned wells. It finds the offset wells inside a buffer around the plans. Then it gets the directional and inclination-only surveys and the location plats of those wells from public state commission records. The output is one Excel workbook with one tab for each well. The app keeps every file that it reads, so a user can review each survey and plat against its source.
 
 ## Supported states
 
@@ -27,10 +27,9 @@ Texas completions before the online system (about 2008 and older) are paper reco
 3. It makes the search area: a buffer around each wellbore path, or around the whole pad.
 4. It asks each state that touches the search area for its wells. It removes wells that were never drilled.
 5. It lists the survey documents of each offset well. This step is free.
-6. You select the wells. The app downloads their documents. It reads the survey tables and the plats.
+6. You select the wells. The app downloads and keeps their documents. It reads the survey tables and keeps the plat pages.
 7. A minimum curvature check compares each row to the reported TVD, N/S and E/W. The app flags each row that does not agree.
-8. The plat checks compare the plat locations to the state GIS and to the survey.
-9. You download the Excel workbook and, if you want, a ZIP file of all plats.
+8. You download the Excel workbook, or the job package with the workbook and all files.
 
 ### Survey extraction
 
@@ -56,31 +55,39 @@ Do not use a flagged row without a check against the source page. The workbook s
 
 ## Plats
 
-The app keeps each plat as its own PDF file. The app shows the plat image next to the survey of the well. The Excel tab of each well holds the plat image, the plat points, and the plat checks.
+The app pulls the plat of each offset well. It does not read the plat. The person who loads the offsets into Compass uses the plats to check the locations.
 
-The vision model reads these values from each plat:
+- Texas: the "Plat" attachment of the completion packet.
+- New Mexico: the Form C-102 pages of the well file. The app finds these pages in the same page sort that finds the survey pages. This sort needs `ANTHROPIC_API_KEY`.
+- Colorado: plat documents in the ECMC list. Download each one and upload it on the well row. If the file name contains "plat" or "C-102", the app keeps the file as a plat with no page sort.
 
-- The labeled points: SHL, KOP, PP, FTP, LTP and BHL
-- Latitude, longitude, state plane X and Y, and MD of each point, if printed
-- The datum and the coordinate system
-- The plat type: as-drilled or permit
+The app keeps the plat pages as one PDF for each plat. The app shows the plat image above the survey of the well. The Excel tab of each well holds the plat image and a link to the plat PDF. "Download plats" gives a ZIP file of all plats in the job.
 
-The app compares the latest as-drilled plat with these sources:
+## Review the source files
 
-| Check | Tolerance |
-|---|---|
-| Plat SHL against the state GIS surface location | 50 ft |
-| Plat BHL against the state GIS bottom hole (TX and CO) | 100 ft |
-| Plat BHL against the last survey station, placed from the plat SHL | 100 ft |
-| Plat BHL MD against the last survey MD | 150 ft |
+The app keeps a copy of every file that it reads: survey attachments, New Mexico well file PDFs, plats, and uploads. Each copy is the file as received from the state site. The app keeps one copy of a file for all jobs.
 
-For a grid north survey, the app rotates the survey offsets by the grid convergence printed on the survey report. Without the convergence, the bottom-hole check can be wrong by hundreds of feet, and the check says so.
+In the well detail view, the "Source files" table shows each file with these items:
 
-If the plat does not print a datum, the app uses the datum that puts the SHL nearer to the state location. If a difference goes away with the other datum, the check notes a possible NAD27/NAD83 mix-up.
+- The pages that hold a survey and the pages that hold a plat. Each page number opens the file at that page.
+- A link to the record on the state site.
+- A download link for the original file.
 
-Without `ANTHROPIC_API_KEY`, the app still downloads and shows Texas plats. It does not read their points, so the checks show "not read". New Mexico plats need the API key, because the app finds the C-102 pages with the vision model.
+Each survey shows a "stored copy" link that opens the source file at the first survey page.
 
-For Colorado, upload the plat PDF on the well row. If the file name contains "plat" or "C-102", the app reads the file as a plat directly.
+Some state sites send TIFF images. Most browsers cannot show TIFF, so the app also keeps a PDF copy of each TIFF or image file. The page links open the PDF copy. The download link gives the original file.
+
+"Download package (ZIP)" gives the complete job for review:
+
+```
+<EDM name>_offset_surveys.xlsx
+wells/<API>_<well name>/<source files>
+wells/<API>_<well name>/plat_<n>.pdf
+```
+
+Extract the ZIP file before you open the workbook. The file links in the workbook open the files in the `wells` folder.
+
+The API serves a file only to the user who owns the job.
 
 ## EDM input
 
@@ -155,7 +162,6 @@ Do not lower `OWT_REQUEST_INTERVAL_S` below 1 second. The state sites are public
 | `OWT_CLASSIFY_MODEL` | `claude-opus-5-5` | Model that finds survey pages |
 | `OWT_CLASSIFY_EFFORT` | `low` | Effort for page classification |
 | `OWT_EXTRACT_EFFORT` | `high` | Effort for table extraction |
-| `OWT_PLAT_EFFORT` | `high` | Effort for plat reading |
 | `OWT_REQUEST_INTERVAL_S` | `1.0` | Minimum seconds between requests to one host |
 | `OWT_WORKER_THREADS` | `4` | Parallel wells for documents and extraction |
 | `OWT_MAX_OFFSET_WELLS` | `300` | The app keeps the nearest wells up to this count |
@@ -181,9 +187,9 @@ backend/app/
   geo/crs.py             Datums, state plane, grid convergence
   geo/buffer.py          Search area and distance to plan
   connectors/            One module for each state, plus the registry
-  extraction/            Page images, text-layer tables, Claude vision, pipeline
+  extraction/            Page images, text-layer tables, Claude vision, plat pages, pipeline
+  files.py               Store of every source file and plat PDF
   survey/mincurve.py     Minimum curvature and QC flags
-  survey/verify.py       Plat checks against state GIS and survey
   export/excel.py        Excel workbook
   jobs.py                Background jobs and job store
   main.py                HTTP API and static frontend
@@ -197,4 +203,4 @@ cd backend
 pytest
 ```
 
-The tests use saved pages from the TX, NM and CO sites, and the real MWD survey and as-completed plat of Scrapfile North #1H (42-301-34197). They do not call the state sites or the Claude API.
+The tests use saved pages from the TX, NM and CO sites, and the real MWD survey (PDF) and as-completed plat (TIFF) of Scrapfile North #1H (42-301-34197). They do not call the state sites or the Claude API.

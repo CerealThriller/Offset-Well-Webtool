@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import time
 import traceback
@@ -31,8 +32,8 @@ from .connectors.registry import get_connector, states_for_area
 from .edm.parser import ParseOptions, parse_edm
 from .extraction.pipeline import DocumentResult, process_document
 from .geo.buffer import BufferMode, build_search_area, distance_to_plans, polygon_to_geojson
-from .models import OffsetWell, PlannedWell
-from .survey.verify import verify_well
+from . import files
+from .models import OffsetWell, PlannedWell, SourceFile
 
 log = logging.getLogger(__name__)
 
@@ -251,14 +252,55 @@ def _status_text(w: OffsetWell) -> str:
     return ", ".join(parts)
 
 
-def _apply_results(job: Job, w: OffsetWell, sources: set[str], surveys: list, plats: list) -> None:
-    """Replace earlier results from the same sources, add the new ones, and run the plat checks."""
+def _apply_results(job: Job, w: OffsetWell, sources: set[str], surveys: list, plats: list, kept: list) -> None:
+    """Replace earlier results from the same sources and add the new ones."""
     with store.lock(job.id):
         w.surveys = [s for s in w.surveys if s.source not in sources] + surveys
         w.plats = [p for p in w.plats if p.source not in sources] + plats
-        w.plat_checks = verify_well(w)
+        new_ids = {f.file_id for f in kept}
+        w.files = [f for f in w.files if f.source_url not in sources and f.file_id not in new_ids] + kept
         w.survey_status = _status_text(w)
         store.save(job)
+
+
+def _file_name(title: str, url: str, data: bytes) -> str:
+    base = url.rsplit("/", 1)[-1].split("?")[0] if "/" in url else ""
+    if not base or "." not in base:
+        base = f"{title or 'document'}.{files.extension(data)}"
+    return re.sub(r"[^A-Za-z0-9#._-]+", "_", base).strip("_")
+
+
+def _keep_file(data: bytes, title: str, url: str, kind: str) -> SourceFile:
+    """Store a downloaded or uploaded file so the user can review it."""
+    ext = files.extension(data)
+    return SourceFile(
+        file_id=files.store(data),
+        view_file_id=files.store_pages(data, list(range(1, files.pages(data) + 1))) if ext in ("tif", "png", "jpg") else "",
+        title=title,
+        source_url=url,
+        kind=kind,
+        file_name=_file_name(title, url, data),
+        size=len(data),
+        pages=files.pages(data),
+    )
+
+
+def _process(job: Job, w: OffsetWell, data: bytes, kept: SourceFile, is_plat: bool) -> DocumentResult:
+    """Read one stored file. A failure keeps the file and logs the reason."""
+    try:
+        res = process_document(
+            data,
+            kept.source_url,
+            title=kept.title,
+            is_plat=is_plat,
+            progress=lambda m: store.note(job, f"{w.api}: {m}"),
+        )
+    except Exception as e:
+        store.note(job, f"{w.api}: {kept.title}: {e}")
+        w.messages.append(f"{kept.title}: {e}")
+        return DocumentResult()
+    kept.survey_pages, kept.plat_pages = res.survey_pages, res.plat_pages
+    return res
 
 
 def _extract_well(job_id: str, key: str) -> None:
@@ -275,30 +317,28 @@ def _extract_well(job_id: str, key: str) -> None:
     with store.lock(job_id):
         w.survey_status = "extracting"
         store.save(job)
-    surveys, plats, sources = [], [], set()
+    surveys, plats, sources, kept = [], [], set(), []
     for d in docs:
         try:
             data = conn.download(d)
-            res = process_document(
-                data,
-                d.url,
-                title=d.title,
-                is_plat=d.likely_plat and not d.likely_survey,
-                progress=lambda m: store.note(job, f"{w.api}: {m}"),
-            )
-            surveys.extend(res.surveys)
-            plats.extend(res.plats)
-            sources.add(d.url)
         except Exception as e:
-            store.note(job, f"{w.api}: {d.title}: {e}")
-            w.messages.append(f"{d.title}: {e}")
-    _apply_results(job, w, sources, surveys, plats)
+            store.note(job, f"{w.api}: {d.title}: download failed: {e}")
+            w.messages.append(f"{d.title}: download failed: {e}")
+            continue
+        kind = "survey" if d.likely_survey else "plat" if d.likely_plat else "well file"
+        f = _keep_file(data, d.title, d.url, kind)
+        res = _process(job, w, data, f, is_plat=d.likely_plat and not d.likely_survey)
+        surveys.extend(res.surveys)
+        plats.extend(res.plats)
+        sources.add(d.url)
+        kept.append(f)
+    _apply_results(job, w, sources, surveys, plats, kept)
 
 
 def add_uploaded_document(job_id: str, key: str, data: bytes, file_name: str) -> None:
     """Extract a document that the user downloaded by hand (for example from ECMC).
 
-    A file name with "plat" or "C-102" is read as a plat without page classification.
+    A file name with "plat" or "C-102" is kept as a plat without page classification.
     """
     job = store.get(job_id)
     assert job is not None
@@ -308,18 +348,11 @@ def add_uploaded_document(job_id: str, key: str, data: bytes, file_name: str) ->
 
     def run() -> None:
         source = f"upload: {file_name}"
-        try:
-            res = process_document(
-                data,
-                source,
-                title=file_name,
-                is_plat="PLAT" in file_name.upper() or "C-102" in file_name.upper(),
-                progress=lambda m: store.note(job, f"{w.api}: {m}"),
-            )
-        except Exception as e:
-            res = DocumentResult()
-            store.note(job, f"{w.api}: upload {file_name}: {e}")
-        _apply_results(job, w, {source}, res.surveys, res.plats)
+        f = _keep_file(data, file_name, source, "upload")
+        f.file_name = re.sub(r"[^A-Za-z0-9#._-]+", "_", file_name) or f.file_name
+        is_plat = "PLAT" in file_name.upper() or "C-102" in file_name.upper()
+        res = _process(job, w, data, f, is_plat=is_plat)
+        _apply_results(job, w, {source}, res.surveys, res.plats, [f])
         with store.lock(job_id):
             job.status = "done"
             store.save(job)

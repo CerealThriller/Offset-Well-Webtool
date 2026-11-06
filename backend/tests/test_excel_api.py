@@ -1,19 +1,24 @@
 import io
 import time
+import zipfile
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 
-from app import jobs
 from app.connectors import registry
 from app.connectors.base import StateConnector
 from app.main import app
-from app.extraction import plats
-from app.extraction.pipeline import DocumentResult
-from app.models import LatLon, OffsetWell, Plat, PlatPoint, Survey, SurveyDocument, SurveyStation, SurveyType
+from app.models import LatLon, OffsetWell, SurveyDocument
+
+TX = Path(__file__).parent / "fixtures" / "tx"
+SURVEY_URL = "https://example.invalid/dpimages/r/4380385"
+PLAT_URL = "https://example.invalid/dpimages/r/4714781"
 
 
 class FakeTexas(StateConnector):
+    """Serves the real Scrapfile North #1H survey and plat. Both need no API call."""
+
     code, name = "TX", "Texas"
 
     def __init__(self, http=None):
@@ -22,86 +27,123 @@ class FakeTexas(StateConnector):
     def find_wells(self, area):
         c = area.centroid
         return [
-            OffsetWell(state="TX", api="42-301-00001", name="NEAR 1H", surface_nad83=LatLon(lat=c.y, lon=c.x)),
+            OffsetWell(state="TX", api="42-301-34197", name="SCRAPFILE NORTH #1H", surface_nad83=LatLon(lat=c.y, lon=c.x)),
             OffsetWell(state="TX", api="42-301-00002", name="PERMIT", surface_nad83=LatLon(lat=c.y, lon=c.x), survey_status="not drilled"),
         ]
 
     def find_documents(self, well):
         return [
-            SurveyDocument(url="https://example.invalid/s.pdf", title="Directional Survey - MWD", likely_survey=True),
-            SurveyDocument(url="https://example.invalid/p.pdf", title="Plat", likely_plat=True),
+            SurveyDocument(url=SURVEY_URL, title="Directional Survey - MWD", likely_survey=True),
+            SurveyDocument(url=PLAT_URL, title="Plat", likely_plat=True),
         ]
 
     def download(self, doc):
-        return b"%PDF-fake"
+        name = "scrapfile_north_1h_mwd.pdf" if doc.url == SURVEY_URL else "scrapfile_north_1h_plat.tif"
+        return (TX / name).read_bytes()
 
 
-well_pos: list = []
+def _wait(client, job_id, status):
+    for _ in range(200):
+        job = client.get(f"/api/jobs/{job_id}").json()
+        if job["status"] == status:
+            return job
+        time.sleep(0.05)
+    raise AssertionError(job["log"])
 
 
-def test_job_flow(fixtures, monkeypatch):
+def _run_job(fixtures, monkeypatch, client):
     monkeypatch.setitem(registry.IMPLEMENTED, "TX", FakeTexas)
     monkeypatch.setitem(registry.IMPLEMENTED, "NM", FakeTexas)
-    survey = Survey(survey_type=SurveyType.DIRECTIONAL, stations=[SurveyStation(md=0, inc=0, azi=0), SurveyStation(md=100, inc=1, azi=90, flags=["x"])])
-    plat_id = plats.store_pages((fixtures / "tx" / "scrapfile_north_1h_plat.pdf").read_bytes(), [1])
-
-    def fake_process(data, source, title="", is_plat=False, progress=None):
-        if is_plat:
-            # The plat SHL sits on the GIS point, so the check passes.
-            plat = Plat(file_id=plat_id, source=source, title=title, read=True, datum="NAD83",
-                        points=[PlatPoint(label="SHL", lat=well_pos[0], lon=well_pos[1])])
-            return DocumentResult(plats=[plat])
-        return DocumentResult(surveys=[survey])
-
-    monkeypatch.setattr(jobs, "process_document", fake_process)
-
-    client = TestClient(app)
     with open(fixtures / "sample_edm.xml", "rb") as f:
         r = client.post("/api/jobs", files={"file": ("pad.xml", f, "text/xml")}, data={"radius_miles": "0.5", "states": "TX"})
     assert r.status_code == 200, r.text
     job_id = r.json()["id"]
-    for _ in range(100):
-        job = client.get(f"/api/jobs/{job_id}").json()
-        if job["status"] == "ready":
-            break
-        time.sleep(0.05)
-    assert job["status"] == "ready", job["log"]
-    assert [w["name"] for w in job["offsets"]] == ["NEAR 1H"]  # not-drilled well removed
-    assert job["offsets"][0]["key"] == "TX-42-301-00001"  # the UI needs the key in the JSON
-    assert job["offsets"][0]["survey_status"] == "1 survey document(s), 1 plat(s)"
-    well_pos[:] = [job["offsets"][0]["surface_nad83"]["lat"], job["offsets"][0]["surface_nad83"]["lon"]]
+    job = _wait(client, job_id, "ready")
+    assert [w["name"] for w in job["offsets"]] == ["SCRAPFILE NORTH #1H"]  # not-drilled well removed
+    w = job["offsets"][0]
+    assert w["key"] == "TX-42-301-34197"  # the UI needs the key in the JSON
+    assert w["survey_status"] == "1 survey document(s), 1 plat(s)"
+    assert client.post(f"/api/jobs/{job_id}/extract", json={"keys": [w["key"]]}).status_code == 200
+    return job_id, _wait(client, job_id, "done")
 
-    assert client.post(f"/api/jobs/{job_id}/extract", json={"keys": ["TX-42-301-00001"]}).status_code == 200
-    for _ in range(100):
-        job = client.get(f"/api/jobs/{job_id}").json()
-        if job["status"] == "done":
-            break
-        time.sleep(0.05)
+
+def test_job_flow_keeps_files_for_review(fixtures, monkeypatch):
+    client = TestClient(app)
+    job_id, job = _run_job(fixtures, monkeypatch, client)
     w = job["offsets"][0]
     assert w["survey_status"] == "1 survey(s) extracted, 1 plat(s)"
-    assert w["plat_checks"][0]["ok"] is True
 
-    key = w["key"]
-    png = client.get(f"/api/jobs/{job_id}/wells/{key}/plats/0.png")
-    assert png.status_code == 200 and png.content[:4] == b"\x89PNG"
-    assert client.get(f"/api/jobs/{job_id}/wells/{key}/plats/0.pdf").content[:4] == b"%PDF"
-    assert client.get(f"/api/jobs/{job_id}/wells/{key}/plats/5.pdf").status_code == 404
-    z = client.get(f"/api/jobs/{job_id}/plats.zip")
-    assert z.status_code == 200
-    import zipfile
-    assert zipfile.ZipFile(io.BytesIO(z.content)).namelist() == ["42-301-00001_NEAR_1H_plat_1.pdf"]
+    # Both downloaded files are kept, with the pages that the tool used.
+    files = {f["kind"]: f for f in w["files"]}
+    assert files["survey"]["survey_pages"] == [2, 3, 4, 5, 6, 7]
+    assert files["survey"]["file_name"] == "Directional_Survey_-_MWD.pdf"
+    assert files["plat"]["plat_pages"] == [1]
+    assert files["plat"]["file_name"] == "Plat.tif"  # RRC serves this plat as TIFF
+    assert files["plat"]["view_file_id"]  # PDF copy for the browser
+    assert files["survey"]["view_file_id"] == ""  # already a PDF
+    r = client.get(f"/api/jobs/{job_id}/files/{files['plat']['file_id']}")
+    assert r.headers["content-type"] == "image/tiff"
+    r = client.get(f"/api/jobs/{job_id}/files/{files['plat']['view_file_id']}")
+    assert r.headers["content-type"] == "application/pdf"
+    (survey,) = w["surveys"]
+    assert survey["source_file_id"] == files["survey"]["file_id"]
+    (plat,) = w["plats"]
+    assert set(plat) >= {"file_id", "title", "pages"} and "points" not in plat  # plats are not read
 
-    x = client.get(f"/api/jobs/{job_id}/export.xlsx")
-    assert x.status_code == 200
-    wb = load_workbook(io.BytesIO(x.content))
-    assert wb.sheetnames[0] == "Summary"
-    assert "PLAN TEST 1H" in wb.sheetnames
-    assert "42-301-00001 NEAR 1H" in wb.sheetnames
-    ws = wb["42-301-00001 NEAR 1H"]
+    # The stored copies are the downloaded bytes.
+    r = client.get(f"/api/jobs/{job_id}/files/{files['survey']['file_id']}")
+    assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
+    assert r.content == (TX / "scrapfile_north_1h_mwd.pdf").read_bytes()
+    assert "inline" in r.headers["content-disposition"]
+    r = client.get(f"/api/jobs/{job_id}/files/{files['survey']['file_id']}?download=true")
+    assert "attachment" in r.headers["content-disposition"]
+    assert client.get(f"/api/jobs/{job_id}/files/{plat['file_id']}").content[:4] == b"%PDF"
+    assert client.get(f"/api/jobs/{job_id}/files/{plat['file_id']}/thumb.png").content[:4] == b"\x89PNG"
+    # A file that is not in the job is not served.
+    assert client.get(f"/api/jobs/{job_id}/files/{'0' * 64}").status_code == 404
+    assert client.get(f"/api/jobs/{job_id}/files/..%2F..%2Fetc").status_code == 404
+
+
+def test_package_links_resolve(fixtures, monkeypatch):
+    client = TestClient(app)
+    job_id, job = _run_job(fixtures, monkeypatch, client)
+    r = client.get(f"/api/jobs/{job_id}/package.zip")
+    assert r.status_code == 200
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    names = set(z.namelist())
+    folder = "wells/42-301-34197_SCRAPFILE_NORTH_#1H"
+    # The original TIFF from RRC, its PDF copy for viewing, and the plat PDF.
+    assert {f"{folder}/plat_1.pdf", f"{folder}/Directional_Survey_-_MWD.pdf", f"{folder}/Plat.tif", f"{folder}/Plat.pdf"} <= names
+    (xlsx,) = [n for n in names if n.endswith(".xlsx")]
+    wb = load_workbook(io.BytesIO(z.read(xlsx)))
+    ws = wb["42-301-34197 SCRAPFILE NORTH #1"]
+    targets = {c.hyperlink.target for row in ws.iter_rows() for c in row if c.hyperlink}
+    assert f"{folder}/Directional_Survey_-_MWD.pdf" in targets
+    assert f"{folder}/plat_1.pdf" in targets
+    assert targets <= names  # every link in the workbook opens a file in the package
     values = [c.value for row in ws.iter_rows() for c in row]
-    assert "MD (ft)" in values and "x" in values
-    assert "Plat checks" in values
-    assert len(ws._images) == 1
+    assert "Source files" in values and "Plat checks" not in values
+    assert len(ws._images) == 1  # the plat image
+
+    plain = load_workbook(io.BytesIO(client.get(f"/api/jobs/{job_id}/export.xlsx").content))
+    assert plain.sheetnames[0] == "Summary"
+    assert "PLAN TEST 1H" in plain.sheetnames
+
+    pz = zipfile.ZipFile(io.BytesIO(client.get(f"/api/jobs/{job_id}/plats.zip").content))
+    assert pz.namelist() == ["42-301-34197_SCRAPFILE_NORTH_#1H_plat_1.pdf"]
+
+
+def test_upload_is_kept(fixtures, monkeypatch):
+    client = TestClient(app)
+    job_id, job = _run_job(fixtures, monkeypatch, client)
+    key = job["offsets"][0]["key"]
+    data = (TX / "scrapfile_north_1h_plat.tif").read_bytes()
+    r = client.post(f"/api/jobs/{job_id}/wells/{key}/upload", files={"file": ("my location plat.tif", data, "image/tiff")})
+    assert r.status_code == 200
+    time.sleep(0.2)
+    w = _wait(client, job_id, "done")["offsets"][0]
+    up = [f for f in w["files"] if f["kind"] == "upload"]
+    assert up and up[0]["file_name"] == "my_location_plat.tif" and up[0]["plat_pages"] == [1]
 
 
 def test_bad_upload():

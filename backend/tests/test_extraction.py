@@ -78,3 +78,43 @@ def test_meters_converted():
 
 def test_text_layer_kind_ignores_scans():
     assert vision.text_layer_kind(vision.PageImage(page_no=1, png=b"", text="")) is None
+
+
+def test_plat_pages_are_kept_not_read(tmp_path, monkeypatch):
+    """A scanned well file: page 2 is a survey, page 3 is a C-102 plat."""
+    monkeypatch.setattr(pipeline.settings, "data_dir", tmp_path)
+    monkeypatch.setattr(
+        vision, "classify_pages",
+        lambda pages, client=None: {1: PageKind.OTHER, 2: PageKind.DIRECTIONAL, 3: PageKind.PLAT},
+    )
+    monkeypatch.setattr(
+        vision, "extract_page",
+        lambda page, kind, client=None: SurveyPageData(
+            is_survey_table=True, survey_kind="directional", depth_unit="ft", north_reference="true",
+            rows=[Row(md=0, inc=0, azi=0), Row(md=100, inc=0, azi=0)],
+        ),
+    )
+    assert not hasattr(vision, "extract_plat")
+    data = _scanned_pdf()
+    res = pipeline.process_document(data, "wellfile.pdf")
+    assert res.survey_pages == [2] and res.plat_pages == [3]
+    (plat,) = res.plats
+    assert plat.pages == [3] and plat.source_file_id == res.file_id
+    assert res.surveys[0].source_file_id == res.file_id
+
+    from app import files
+    assert files.path(res.file_id).read_bytes() == data
+    with pymupdf.open(files.path(plat.file_id)) as doc:
+        assert doc.page_count == 1
+
+
+def test_file_store_rejects_bad_ids(tmp_path, monkeypatch):
+    from app import files
+
+    monkeypatch.setattr(files.settings, "data_dir", tmp_path)
+    for bad in ("../etc/passwd", "x" * 64, "A" * 64):
+        with pytest.raises(ValueError):
+            files.path(bad)
+    fid = files.store(b"%PDF-1.4 test")
+    assert files.path(fid).suffix == ".pdf"
+    assert files.store(b"%PDF-1.4 test") == fid  # one copy

@@ -52,6 +52,7 @@ class Survey(BaseModel):
     stations: list[SurveyStation]
     north_reference: NorthReference = NorthReference.UNKNOWN
     source: str = ""  # URL, file name or "EDM"
+    source_file_id: str = ""  # the stored source document, for review
     source_pages: list[int] = Field(default_factory=list)
     company: Optional[str] = None
     grid_convergence_deg: Optional[float] = None  # from the report header, if printed
@@ -95,43 +96,33 @@ class SurveyDocument(BaseModel):
     access: str = "direct"  # "direct" or "manual" (site blocks automated download)
 
 
-class PlatPoint(BaseModel):
-    """One labeled location on a plat, as printed."""
+class SourceFile(BaseModel):
+    """A file that the tool downloaded or a user uploaded, kept for review."""
 
-    label: str  # SHL, KOP, PP, FTP, LTP, BHL, or the plat's own label
-    lat: Optional[float] = None  # decimal degrees on the plat datum
-    lon: Optional[float] = None
-    x: Optional[float] = None  # state plane coordinates on the plat
-    y: Optional[float] = None
-    md: Optional[float] = None
-    footage: Optional[str] = None  # for example "777' FSL & 809' FWL"
+    file_id: str  # sha256 of the content; the file is in the shared file store
+    view_file_id: str = ""  # PDF copy for the browser, when the original is TIFF or an image
+    title: str = ""
+    source_url: str = ""  # state site URL, or "upload: <name>"
+    kind: str = "document"  # survey, plat, well file, upload
+    file_name: str = ""
+    size: int = 0
+    pages: int = 0
+    survey_pages: list[int] = Field(default_factory=list)
+    plat_pages: list[int] = Field(default_factory=list)
 
 
 class Plat(BaseModel):
-    """A well location plat (Texas plat, New Mexico C-102, Colorado location plat)."""
+    """A well location plat (Texas plat, New Mexico C-102, Colorado location plat).
 
-    file_id: str  # sha256 of the stored one-plat PDF
+    The tool does not read the plat. It keeps the plat pages as their own
+    PDF so the engineer can check the locations before the Compass load.
+    """
+
+    file_id: str  # the one-plat PDF in the file store
     source: str
+    source_file_id: str = ""  # the document that holds the plat pages
     title: str = ""
     pages: list[int] = Field(default_factory=list)  # pages in the source document
-    read: bool = False  # True if the location data was read from the plat
-    as_drilled: Optional[bool] = None
-    datum: Optional[str] = None  # NAD27, NAD83, WGS84 or None if not printed
-    crs: Optional[str] = None  # for example "Texas Central 4203"
-    points: list[PlatPoint] = Field(default_factory=list)
-    notes: list[str] = Field(default_factory=list)
-
-
-class PlatCheck(BaseModel):
-    """One comparison between a plat and another source."""
-
-    item: str
-    plat_value: str
-    other_value: str
-    difference_ft: Optional[float] = None
-    tolerance_ft: Optional[float] = None
-    ok: Optional[bool] = None  # None: not enough data to compare
-    note: str = ""
 
 
 class OffsetWell(BaseModel):
@@ -152,7 +143,7 @@ class OffsetWell(BaseModel):
     documents: list[SurveyDocument] = Field(default_factory=list)
     surveys: list[Survey] = Field(default_factory=list)
     plats: list[Plat] = Field(default_factory=list)
-    plat_checks: list[PlatCheck] = Field(default_factory=list)
+    files: list[SourceFile] = Field(default_factory=list)
     survey_status: str = "not searched"
     messages: list[str] = Field(default_factory=list)
 

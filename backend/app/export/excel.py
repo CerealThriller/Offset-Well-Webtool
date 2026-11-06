@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 import re
-from typing import Iterable
+from typing import Iterable, Optional
 
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as XLImage
@@ -12,15 +12,13 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
-from ..extraction.plats import plat_png
+from .. import files
 from ..models import OffsetWell, Plat, PlannedWell, Survey
-from ..survey.verify import summary as check_summary
 
 HEAD = Font(bold=True, color="FFFFFF")
 HEAD_FILL = PatternFill("solid", fgColor="1F4E79")
 FLAG_FILL = PatternFill("solid", fgColor="FFF2CC")
-OK_FILL = PatternFill("solid", fgColor="E2EFDA")
-BAD_FILL = PatternFill("solid", fgColor="F8CBAD")
+LINK = Font(color="0563C1", underline="single")
 PLAT_IMAGE_COL = "P"
 PLAT_IMAGE_WIDTH_PX = 640
 TITLE = Font(bold=True, size=13)
@@ -70,7 +68,14 @@ def _kv(ws: Worksheet, row: int, pairs: list[tuple[str, object]]) -> int:
     return row
 
 
-def _survey_block(ws: Worksheet, row: int, survey: Survey, title: str) -> int:
+def _link(ws: Worksheet, row: int, col: int, text: str, target: Optional[str]) -> None:
+    c = ws.cell(row=row, column=col, value=text)
+    if target:
+        c.hyperlink = target
+        c.font = LINK
+
+
+def _survey_block(ws: Worksheet, row: int, survey: Survey, title: str, links: dict[str, str]) -> int:
     ws.cell(row=row, column=1, value=title).font = TITLE
     row += 1
     row = _kv(
@@ -86,6 +91,10 @@ def _survey_block(ws: Worksheet, row: int, survey: Survey, title: str) -> int:
             ("Rows with QC flags", survey.flagged_count),
         ],
     )
+    ws.cell(row=row, column=1, value="Source file").font = BOLD
+    target = links.get(survey.source_file_id)
+    _link(ws, row, 2, target or "not in this export", target)
+    row += 1
     for note in survey.notes:
         ws.cell(row=row, column=1, value="Note").font = BOLD
         ws.cell(row=row, column=2, value=note)
@@ -108,43 +117,36 @@ def _survey_block(ws: Worksheet, row: int, survey: Survey, title: str) -> int:
     return row + 2
 
 
-def _plat_block(ws: Worksheet, row: int, o: OffsetWell) -> int:
-    ws.cell(row=row, column=1, value="Plat checks").font = TITLE
-    row += 1
-    if o.plat_checks:
-        _header(ws, row, ["Check", "Plat", "Other source", "Difference (ft)", "Tolerance (ft)", "Result", "Note"])
+def _files_block(ws: Worksheet, row: int, o: OffsetWell, links: dict[str, str]) -> int:
+    """List the plats and every source file, with links into the job package."""
+    if o.plats:
+        ws.cell(row=row, column=1, value="Plats (for review, not read by the tool)").font = TITLE
         row += 1
-        for c in o.plat_checks:
-            result = "ok" if c.ok else ("check" if c.ok is False else "-")
-            vals = [c.item, c.plat_value, c.other_value, c.difference_ft, c.tolerance_ft, result, c.note]
-            for col, v in enumerate(vals, start=1):
-                cell = ws.cell(row=row, column=col, value=v)
-                if col == 6 and c.ok is not None:
-                    cell.fill = OK_FILL if c.ok else BAD_FILL
-            row += 1
-    else:
-        ws.cell(row=row, column=1, value="No plat locations to compare.")
+        _header(ws, row, ["Plat", "Title", "Pages in source", "Source"])
         row += 1
-    row += 1
-    for i, p in enumerate(o.plats, start=1):
-        ws.cell(row=row, column=1, value=f"Plat {i}").font = BOLD
-        kind = {True: "as drilled", False: "permit"}.get(p.as_drilled, "type not stated")
-        ws.cell(row=row, column=2, value=f"{p.title} ({kind}), datum {p.datum or 'not printed'}")
-        ws.cell(row=row, column=3, value=p.source)
-        row += 1
-        if p.points:
-            _header(ws, row, ["Point", "Latitude", "Longitude", "MD (ft)", "X", "Y", "Footage"])
-            row += 1
-            for pt in p.points:
-                for col, v in enumerate([pt.label, pt.lat, pt.lon, pt.md, pt.x, pt.y, pt.footage], start=1):
-                    ws.cell(row=row, column=col, value=v)
-                row += 1
-        for n in p.notes:
-            ws.cell(row=row, column=1, value="Note").font = BOLD
-            ws.cell(row=row, column=2, value=n)
+        for i, p in enumerate(o.plats, start=1):
+            _link(ws, row, 1, f"Plat {i}", links.get(p.file_id))
+            ws.cell(row=row, column=2, value=p.title)
+            ws.cell(row=row, column=3, value=", ".join(map(str, p.pages)))
+            ws.cell(row=row, column=4, value=p.source)
             row += 1
         row += 1
-    return row + 1
+    if o.files:
+        ws.cell(row=row, column=1, value="Source files").font = TITLE
+        row += 1
+        _header(ws, row, ["File", "Title", "Type", "Pages", "Survey pages", "Plat pages", "State record", "PDF copy"])
+        row += 1
+        for f in o.files:
+            _link(ws, row, 1, f.file_name or f.file_id[:12], links.get(f.file_id))
+            vals = [f.title, f.kind, f.pages or None, ", ".join(map(str, f.survey_pages)) or None,
+                    ", ".join(map(str, f.plat_pages)) or None, f.source_url]
+            for col, v in enumerate(vals, start=2):
+                ws.cell(row=row, column=col, value=v)
+            if f.view_file_id:
+                _link(ws, row, 8, "open", links.get(f.view_file_id))
+            row += 1
+        row += 1
+    return row
 
 
 def _plat_images(ws: Worksheet, plats: list[Plat]) -> None:
@@ -152,7 +154,7 @@ def _plat_images(ws: Worksheet, plats: list[Plat]) -> None:
     anchor_row = 1
     for p in plats:
         try:
-            img = XLImage(io.BytesIO(plat_png(p.file_id)))
+            img = XLImage(io.BytesIO(files.thumbnail(p.file_id)))
         except Exception:  # a missing file must not break the export
             continue
         scale = PLAT_IMAGE_WIDTH_PX / img.width
@@ -170,7 +172,14 @@ def build_workbook(
     planned: list[PlannedWell],
     offsets: list[OffsetWell],
     job_info: dict,
+    links: Optional[dict[str, str]] = None,
 ) -> bytes:
+    """Build the workbook.
+
+    links maps a file id to a path relative to the workbook (the layout of
+    the job package ZIP). Without links, the file cells have no hyperlink.
+    """
+    links = links or {}
     wb = Workbook()
     used: set[str] = set()
 
@@ -210,7 +219,7 @@ def build_workbook(
     row += 1
     tab_names = {}
     for o in offsets:
-        if o.surveys or o.plats:
+        if o.surveys or o.plats or o.files:
             tab_names[o.key] = _safe_title(f"{o.api} {o.name}", used)
     for o in sorted(offsets, key=lambda x: x.distance_to_plan_ft or 0):
         vals = [
@@ -229,7 +238,7 @@ def build_workbook(
             len(o.surveys),
             sum(s.flagged_count for s in o.surveys),
             len(o.plats),
-            check_summary(o.plat_checks),
+            len(o.files),
             "\n".join(f"{d.title}: {d.url}" for d in o.documents if d.likely_survey) or None,
             o.detail_url,
         ]
@@ -243,7 +252,7 @@ def build_workbook(
 
     for p in planned:
         wsp = wb.create_sheet(_safe_title(f"PLAN {p.name}", used))
-        _survey_block(wsp, 1, p.survey, f"Planned well: {p.name}  {p.design}")
+        _survey_block(wsp, 1, p.survey, f"Planned well: {p.name}  {p.design}", links)
         _widths(wsp, {1: 18, 2: 14, 14: 60})
 
     for o in offsets:
@@ -266,10 +275,9 @@ def build_workbook(
             ],
         )
         r += 1
-        if o.plats:
-            r = _plat_block(wso, r, o)
+        r = _files_block(wso, r, o, links)
         for i, s in enumerate(o.surveys, start=1):
-            r = _survey_block(wso, r, s, f"Survey {i} of {len(o.surveys)}")
+            r = _survey_block(wso, r, s, f"Survey {i} of {len(o.surveys)}", links)
         _widths(wso, {1: 22, 2: 30, 3: 30, 4: 14, 14: 60})
         _plat_images(wso, o.plats)
 

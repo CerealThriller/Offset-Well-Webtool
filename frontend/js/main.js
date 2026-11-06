@@ -140,6 +140,9 @@ function render() {
   const plats = $("#plats-btn");
   plats.href = api.platsUrl(job.id);
   plats.classList.toggle("disabled", !job.offsets.some((w) => w.plats.length));
+  const pkg = $("#package-btn");
+  pkg.href = api.packageUrl(job.id);
+  pkg.classList.toggle("disabled", !job.offsets.length);
   renderOffsetTable($("#offset-table tbody"), job, state.selected, {
     select: selectWell,
     upload: (key) => {
@@ -162,7 +165,7 @@ function showSurveys(key) {
   const well = state.job.offsets.find((w) => w.key === key);
   if (!well) return;
   $("#survey-view").hidden = false;
-  renderSurveys($("#survey-body"), $("#survey-title"), well, (i, ext) => api.platUrl(state.job.id, key, i, ext));
+  renderSurveys($("#survey-body"), $("#survey-title"), well, (fileId) => api.fileUrl(state.job.id, fileId));
 }
 
 async function extractSelected() {

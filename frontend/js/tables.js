@@ -14,19 +14,6 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-export function checkSummary(checks) {
-  const scored = checks.filter((c) => c.ok !== null);
-  if (!scored.length) return checks.length ? "not checked" : "";
-  const good = scored.filter((c) => c.ok).length;
-  return good === scored.length ? "ok" : `${good} of ${scored.length} ok`;
-}
-
-function checkClass(checks) {
-  const scored = checks.filter((c) => c.ok !== null);
-  if (!scored.length) return "none";
-  return scored.every((c) => c.ok) ? "ok" : "bad";
-}
-
 export function renderOffsetTable(tbody, job, selected, handlers) {
   tbody.replaceChildren();
   for (const w of job.offsets) {
@@ -56,7 +43,8 @@ export function renderOffsetTable(tbody, job, selected, handlers) {
       el("td", {}, w.trajectory),
       el("td", { class: "num" }, fmt(w.distance_to_plan_ft, 0)),
       el("td", {}, w.survey_status),
-      el("td", { class: `check-${checkClass(w.plat_checks)}` }, checkSummary(w.plat_checks)),
+      el("td", { class: "num" }, w.plats.length || ""),
+      el("td", { class: "num" }, w.files.length || ""),
       docs,
     );
     row.dataset.key = w.key;
@@ -69,10 +57,11 @@ const COLS = [
   ["VS", "vs"], ["DLS", "dls"], ["Calc TVD", "calc_tvd"], ["Calc N/S", "calc_ns"], ["Calc E/W", "calc_ew"],
 ];
 
-export function renderSurveys(container, title, well, platUrl) {
+export function renderSurveys(container, title, well, fileUrl) {
   title.textContent = `${well.api} ${well.name}`;
   container.replaceChildren();
-  renderPlats(container, well, platUrl);
+  renderPlats(container, well, fileUrl);
+  renderFiles(container, well, fileUrl);
   if (!well.surveys.length) {
     container.append(el("p", {}, `No survey extracted. Status: ${well.survey_status}.`));
     for (const m of well.messages) container.append(el("p", { class: "muted" }, m));
@@ -82,7 +71,7 @@ export function renderSurveys(container, title, well, platUrl) {
     container.append(
       el("h3", {}, `Survey ${i + 1}: ${s.survey_type.replace("_", " ")}, ${s.stations.length} stations, ` +
         `north ref ${s.north_reference}, ${s.flagged_count ?? s.stations.filter((x) => x.flags.length).length} flagged`),
-      el("p", { class: "muted" }, `Source: ${s.source}${s.source_pages.length ? ` (pages ${s.source_pages.join(", ")})` : ""}`),
+      sourceLine(s, well, fileUrl),
     );
     for (const n of s.notes) container.append(el("p", { class: "muted" }, n));
     const head = el("tr", {}, ...COLS.map(([h]) => el("th", {}, h)), el("th", {}, "QC"));
@@ -98,35 +87,63 @@ export function renderSurveys(container, title, well, platUrl) {
   });
 }
 
-function renderPlats(container, well, platUrl) {
-  if (!well.plats.length) return;
-  container.append(el("h3", {}, `Plat checks (${checkSummary(well.plat_checks) || "none"})`));
-  if (well.plat_checks.length) {
-    const head = el("tr", {}, ...["Check", "Plat", "Other source", "Diff (ft)", "Tol (ft)", "Result", "Note"].map((h) => el("th", {}, h)));
-    const body = el("tbody");
-    for (const c of well.plat_checks) {
-      const result = c.ok === null ? "-" : c.ok ? "ok" : "check";
-      body.append(
-        el("tr", {},
-          el("td", {}, c.item), el("td", {}, c.plat_value), el("td", {}, c.other_value),
-          el("td", { class: "num" }, fmt(c.difference_ft, 0)), el("td", { class: "num" }, fmt(c.tolerance_ft, 0)),
-          el("td", { class: `check-${c.ok === null ? "none" : c.ok ? "ok" : "bad"}` }, result),
-          el("td", { class: "wrap" }, c.note)),
-      );
-    }
-    container.append(el("div", { class: "table-wrap" }, el("table", { class: "grid" }, el("thead", {}, head), body)));
+// Open a PDF at a page: browsers read the #page=N fragment.
+const atPage = (url, page) => (page ? `${url}#page=${page}` : url);
+
+function sourceLine(s, well, fileUrl) {
+  const pages = s.source_pages.length ? ` (pages ${s.source_pages.join(", ")})` : "";
+  const p = el("p", { class: "muted" }, "Source: ");
+  if (s.source_file_id) {
+    const f = well.files.find((x) => x.file_id === s.source_file_id);
+    const id = f?.view_file_id || s.source_file_id;
+    p.append(el("a", { href: atPage(fileUrl(id), s.source_pages[0]), target: "_blank", rel: "noopener" }, "stored copy"), " | ");
   }
+  p.append(s.source.startsWith("http") ? el("a", { href: s.source, target: "_blank", rel: "noopener" }, "state record") : s.source, pages);
+  return p;
+}
+
+function renderPlats(container, well, fileUrl) {
+  if (!well.plats.length) return;
+  container.append(
+    el("h3", {}, `Plats (${well.plats.length})`),
+    el("p", { class: "muted" }, "The tool does not read plats. Check the locations against the survey before the Compass load."),
+  );
   const gallery = el("div", { class: "plats" });
   well.plats.forEach((p, i) => {
-    const kind = p.as_drilled === true ? "as drilled" : p.as_drilled === false ? "permit" : "type not stated";
-    const pts = p.points.map((q) => `${q.label}: ${q.lat ?? "?"}, ${q.lon ?? "?"}${q.md ? `, MD ${q.md}` : ""}`).join(" | ");
     gallery.append(
       el("figure", {},
-        el("a", { href: platUrl(i, "pdf"), target: "_blank", rel: "noopener" },
-          el("img", { src: platUrl(i, "png"), alt: `Plat ${i + 1} of ${well.api}`, loading: "lazy" })),
-        el("figcaption", {}, `Plat ${i + 1}: ${p.title} (${kind}), datum ${p.datum ?? "not printed"}. ${pts}`,
-          ...p.notes.map((n) => el("div", { class: "muted" }, n)))),
+        el("a", { href: fileUrl(p.file_id), target: "_blank", rel: "noopener" },
+          el("img", { src: `${fileUrl(p.file_id)}/thumb.png`, alt: `Plat ${i + 1} of ${well.api}`, loading: "lazy" })),
+        el("figcaption", {}, `Plat ${i + 1}: ${p.title}, page(s) ${p.pages.join(", ")} of the source.`)),
     );
   });
   container.append(gallery);
+}
+
+function renderFiles(container, well, fileUrl) {
+  if (!well.files.length) return;
+  container.append(el("h3", {}, `Source files (${well.files.length})`));
+  const head = el("tr", {}, ...["File", "Title", "Type", "Pages", "Survey pages", "Plat pages", "State record", ""].map((h) => el("th", {}, h)));
+  const body = el("tbody");
+  // TIFF and image files open as their PDF copy, so every browser shows them.
+  const viewUrl = (f) => fileUrl(f.view_file_id || f.file_id);
+  const pageLinks = (f, list) => {
+    const td = el("td");
+    for (const n of list) td.append(el("a", { href: atPage(viewUrl(f), n), target: "_blank", rel: "noopener" }, String(n)), " ");
+    return td;
+  };
+  for (const f of well.files) {
+    body.append(
+      el("tr", {},
+        el("td", {}, el("a", { href: viewUrl(f), target: "_blank", rel: "noopener" }, f.file_name)),
+        el("td", {}, f.title),
+        el("td", {}, f.kind),
+        el("td", { class: "num" }, f.pages || ""),
+        pageLinks(f, f.survey_pages),
+        pageLinks(f, f.plat_pages),
+        el("td", {}, f.source_url.startsWith("http") ? el("a", { href: f.source_url, target: "_blank", rel: "noopener" }, "open") : f.source_url),
+        el("td", {}, el("a", { href: `${fileUrl(f.file_id)}?download=true`, title: "The original file as received" }, "download"))),
+    );
+  }
+  container.append(el("div", { class: "table-wrap" }, el("table", { class: "grid" }, el("thead", {}, head), body)));
 }

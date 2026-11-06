@@ -13,12 +13,11 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import jobs
+from . import files, jobs
 from .config import settings
 from .connectors.registry import catalog
 from .edm.parser import EdmError, ParseOptions
 from .export.excel import build_workbook
-from .extraction.plats import plat_pdf_path, plat_png
 from .geo.buffer import BufferMode
 from .geo.crs import COMMON_PROJECTED_CRS, nadcon_grid_available
 from .models import Datum, NorthReference
@@ -146,10 +145,8 @@ async def upload_doc(job_id: str, key: str, request: Request, file: UploadFile =
     return {"queued": True}
 
 
-@app.get("/api/jobs/{job_id}/export.xlsx")
-def export(job_id: str, request: Request) -> Response:
-    job = _job_or_404(job_id, request)
-    info = {
+def _job_info(job: jobs.Job) -> dict:
+    return {
         "Job": job.id,
         "EDM file": job.file_name,
         "Search radius (mi)": job.options.radius_miles,
@@ -158,52 +155,99 @@ def export(job_id: str, request: Request) -> Response:
         "Offset wells found": len(job.offsets),
         "Wells with surveys": sum(1 for w in job.offsets if w.surveys),
         "Wells with plats": sum(1 for w in job.offsets if w.plats),
-        "Plat checks": "Plat SHL vs state GIS (50 ft), plat BHL vs GIS and survey end (100 ft), BHL MD (150 ft).",
         "Coordinates": "Surface positions in NAD83. Survey offsets in feet as reported.",
         "QC": "Shaded rows disagree with a minimum curvature recalculation. Check them against the source.",
+        "Plats": "The tool does not read plats. Check plat locations against the survey before the Compass load.",
     }
-    data = build_workbook(job.planned, job.offsets, info)
-    name = (job.file_name.rsplit(".", 1)[0] or "offsets") + "_offset_surveys.xlsx"
+
+
+def _workbook_name(job: jobs.Job) -> str:
+    return _safe(job.file_name.rsplit(".", 1)[0] or "offsets") + "_offset_surveys.xlsx"
+
+
+def _safe(text: str) -> str:
+    return re.sub(r"[^A-Za-z0-9#._-]+", "_", text).strip("_") or "file"
+
+
+@app.get("/api/jobs/{job_id}/export.xlsx")
+def export(job_id: str, request: Request) -> Response:
+    job = _job_or_404(job_id, request)
+    data = build_workbook(job.planned, job.offsets, _job_info(job))
     return Response(
         data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+        headers={"Content-Disposition": f'attachment; filename="{_workbook_name(job)}"'},
     )
 
 
-def _plat_or_404(job_id: str, key: str, index: int, request: Request):
+def _job_files(job: jobs.Job) -> dict[str, tuple[str, str]]:
+    """{file_id: (well folder, file name)} for every source file and plat in the job."""
+    out: dict[str, tuple[str, str]] = {}
+    for w in job.offsets:
+        folder = _safe(f"{w.api}_{w.name}")
+        used: set[str] = set()
+
+        def unique(name: str) -> str:
+            stem, dot, ext = name.rpartition(".")
+            if not dot:
+                stem, ext = name, ""
+            n, cand = 2, name
+            while cand.lower() in used:
+                cand = f"{stem}_{n}.{ext}" if ext else f"{stem}_{n}"
+                n += 1
+            used.add(cand.lower())
+            return cand
+
+        for i, p in enumerate(w.plats, start=1):
+            if p.file_id not in out:
+                out[p.file_id] = (folder, unique(f"plat_{i}.pdf"))
+        for f in w.files:
+            if f.file_id not in out:
+                out[f.file_id] = (folder, unique(f.file_name or f.file_id[:12]))
+            if f.view_file_id and f.view_file_id not in out:
+                stem = (f.file_name or f.file_id[:12]).rpartition(".")[0] or f.file_name
+                out[f.view_file_id] = (folder, unique(f"{stem}.pdf"))
+    return out
+
+
+def _stored(file_id: str):
+    try:
+        return files.path(file_id)
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(404, "File not found") from e
+
+
+@app.get("/api/jobs/{job_id}/files/{file_id}")
+def get_file(job_id: str, file_id: str, request: Request, download: bool = False) -> Response:
+    """A source file or plat of the job, inline for review in the browser."""
     job = _job_or_404(job_id, request)
-    well = next((w for w in job.offsets if w.key == key), None)
-    if well is None or not 0 <= index < len(well.plats):
-        raise HTTPException(404, "Plat not found")
-    return well, well.plats[index]
-
-
-@app.get("/api/jobs/{job_id}/wells/{key}/plats/{index}.pdf")
-def plat_pdf(job_id: str, key: str, index: int, request: Request) -> Response:
-    well, plat = _plat_or_404(job_id, key, index, request)
-    path = plat_pdf_path(plat.file_id)
-    if not path.exists():
-        raise HTTPException(404, "Plat file not found")
+    known = _job_files(job)
+    if file_id not in known:
+        raise HTTPException(404, "File not in job")
+    path = _stored(file_id)
+    disposition = "attachment" if download else "inline"
     return Response(
         path.read_bytes(),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{_plat_name(well, index)}"'},
+        media_type=files.content_type(file_id),
+        headers={"Content-Disposition": f'{disposition}; filename="{known[file_id][1]}"'},
     )
 
 
-@app.get("/api/jobs/{job_id}/wells/{key}/plats/{index}.png")
-def plat_image(job_id: str, key: str, index: int, request: Request) -> Response:
-    _, plat = _plat_or_404(job_id, key, index, request)
-    try:
-        return Response(plat_png(plat.file_id), media_type="image/png")
-    except FileNotFoundError as e:
-        raise HTTPException(404, "Plat file not found") from e
+@app.get("/api/jobs/{job_id}/files/{file_id}/thumb.png")
+def get_thumb(job_id: str, file_id: str, request: Request) -> Response:
+    job = _job_or_404(job_id, request)
+    if file_id not in _job_files(job):
+        raise HTTPException(404, "File not in job")
+    _stored(file_id)
+    return Response(files.thumbnail(file_id), media_type="image/png")
 
 
-def _plat_name(well, index: int) -> str:
-    safe = re.sub(r"[^A-Za-z0-9#._-]+", "_", f"{well.api}_{well.name}").strip("_")
-    return f"{safe}_plat_{index + 1}.pdf"
+def _zip_response(buf: io.BytesIO, name: str) -> Response:
+    return Response(
+        buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
 
 
 @app.get("/api/jobs/{job_id}/plats.zip")
@@ -213,18 +257,45 @@ def plats_zip(job_id: str, request: Request) -> Response:
     count = 0
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for w in job.offsets:
-            for i, p in enumerate(w.plats):
-                path = plat_pdf_path(p.file_id)
-                if path.exists():
-                    z.write(path, _plat_name(w, i))
+            for i, p in enumerate(w.plats, start=1):
+                try:
+                    z.write(files.path(p.file_id), f"{_safe(f'{w.api}_{w.name}')}_plat_{i}.pdf")
                     count += 1
+                except (ValueError, FileNotFoundError):
+                    continue
     if not count:
         raise HTTPException(404, "No plats in this job")
-    return Response(
-        buf.getvalue(),
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{job.id}_plats.zip"'},
-    )
+    return _zip_response(buf, f"{job.id}_plats.zip")
+
+
+@app.get("/api/jobs/{job_id}/package.zip")
+def package_zip(job_id: str, request: Request) -> Response:
+    """The workbook and every source file and plat, with links between them.
+
+    Layout:
+      <workbook>.xlsx
+      wells/<API>_<name>/<source file>
+      wells/<API>_<name>/plat_<n>.pdf
+    """
+    job = _job_or_404(job_id, request)
+    links: dict[str, str] = {}
+    entries: list[tuple[str, str]] = []
+    for fid, (folder, name) in _job_files(job).items():
+        rel = f"wells/{folder}/{name}"
+        try:
+            entries.append((str(files.path(fid)), rel))
+        except (ValueError, FileNotFoundError):
+            continue
+        links[fid] = rel
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr(_workbook_name(job), build_workbook(job.planned, job.offsets, _job_info(job), links))
+        used: set[str] = set()
+        for src, rel in entries:
+            if rel not in used:
+                z.write(src, rel)
+                used.add(rel)
+    return _zip_response(buf, f"{_safe(job.file_name.rsplit('.', 1)[0])}_package.zip")
 
 
 if settings.frontend_dir.exists():

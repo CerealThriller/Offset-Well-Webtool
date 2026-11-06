@@ -80,27 +80,6 @@ class SurveyPageData(BaseModel):
     notes: Optional[str] = Field(None, description="Anything the engineer must know, such as a tie-in or a sidetrack")
 
 
-class PlatPointOut(BaseModel):
-    label: str = Field(description="SHL, KOP, PP, FTP, LTP, BHL, or the label printed on the plat")
-    lat: Optional[float] = Field(None, description="Latitude in decimal degrees, + north")
-    lon: Optional[float] = Field(None, description="Longitude in decimal degrees, negative west")
-    x: Optional[float] = Field(None, description="State plane X (easting) as printed")
-    y: Optional[float] = Field(None, description="State plane Y (northing) as printed")
-    md: Optional[float] = Field(None, description="Measured depth at this point, if printed")
-    footage: Optional[str] = Field(None, description="Section line calls, for example 777' FSL & 809' FWL")
-
-
-class PlatPageData(BaseModel):
-    is_plat: bool
-    as_drilled: Optional[bool] = Field(None, description="True for as-drilled or as-completed, False for a permit plat")
-    datum: Literal["NAD27", "NAD83", "WGS84", "unknown"]
-    crs: Optional[str] = Field(None, description="State plane zone or other coordinate system, as printed")
-    well_name: Optional[str] = None
-    api_number: Optional[str] = None
-    points: list[PlatPointOut]
-    notes: Optional[str] = None
-
-
 # ---- prompts ---------------------------------------------------------------
 
 CLASSIFY_SYSTEM = (
@@ -114,18 +93,6 @@ CLASSIFY_SYSTEM = (
     "Mexico Form C-102, Colorado well location plat, as-drilled plat).\n"
     "- other: anything else, including permits, logs, cement reports, and cover letters.\n"
     "A cover page or certification for a survey that has no rows of data is 'other'."
-)
-
-PLAT_SYSTEM = (
-    "You read well location plats from scanned well records for a drilling engineer. Copy the values exactly "
-    "as printed. Do not calculate or estimate a value that the plat does not print. Rules:\n"
-    "- Return one point for each labeled location: surface hole (SHL), kick-off point (KOP), penetration "
-    "point (PP), first take point (FTP), last take point (LTP), bottom hole (BHL). Use these short labels when "
-    "the meaning is clear, and keep both labels when one point has two (for example 'BHL/LTP').\n"
-    "- Convert degree-minute-second latitude and longitude to decimal degrees. West longitude is negative.\n"
-    "- datum: the horizontal datum printed for the coordinates (NAD27, NAD83 or WGS84), else unknown.\n"
-    "- A plat page often prints a table of points. Read the table and the callout boxes.\n"
-    "- If the page is not a plat, set is_plat to false and return no points."
 )
 
 EXTRACT_SYSTEM = (
@@ -276,16 +243,3 @@ def extract_page(page: PageImage, kind: PageKind, client: Optional[anthropic.Ant
         max_tokens=16000,
     )
 
-
-def extract_plat(page: PageImage, client: Optional[anthropic.Anthropic] = None) -> PlatPageData:
-    client = client or _client()
-    content = [_image_block(page.png), {"type": "text", "text": "Read the locations on this well plat."}]
-    return _parse(
-        client,
-        model=settings.vision_model,
-        effort=settings.plat_effort,
-        system=PLAT_SYSTEM,
-        content=content,
-        schema=PlatPageData,
-        max_tokens=16000,
-    )

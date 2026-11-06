@@ -33,5 +33,6 @@ export const api = {
   },
   exportUrl: (id) => `/api/jobs/${id}/export.xlsx`,
   platsUrl: (id) => `/api/jobs/${id}/plats.zip`,
-  platUrl: (id, key, i, ext) => `/api/jobs/${id}/wells/${encodeURIComponent(key)}/plats/${i}.${ext}`,
+  packageUrl: (id) => `/api/jobs/${id}/package.zip`,
+  fileUrl: (id, fileId) => `/api/jobs/${id}/files/${fileId}`,
 };

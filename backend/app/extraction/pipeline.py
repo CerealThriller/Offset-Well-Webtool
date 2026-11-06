@@ -1,4 +1,4 @@
-"""Document bytes in, validated surveys and plats out."""
+"""Document bytes in: stored file, validated surveys and plat pages out."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from typing import Callable, Optional
 
 from pydantic import BaseModel, Field
 
+from .. import files
 from ..config import settings
 from ..models import NorthReference, Plat, Survey, SurveyStation, SurveyType
 from ..survey.mincurve import validate_survey
@@ -21,7 +22,7 @@ log = logging.getLogger(__name__)
 M_TO_FT = 3.280839895013123
 CLASSIFY_DPI = 90
 EXTRACT_DPI = 200
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 
 
 def _cache_path(data: bytes):
@@ -32,6 +33,10 @@ def _cache_path(data: bytes):
 
 
 class DocumentResult(BaseModel):
+    file_id: str = ""  # the stored document, for review
+    pages: int = 0
+    survey_pages: list[int] = Field(default_factory=list)
+    plat_pages: list[int] = Field(default_factory=list)
     surveys: list[Survey] = Field(default_factory=list)
     plats: list[Plat] = Field(default_factory=list)
 
@@ -49,14 +54,16 @@ def process_document(
     progress: Optional[Callable[[str], None]] = None,
     client=None,
 ) -> DocumentResult:
-    """Find and read every survey table and plat in one document.
+    """Store one document, read its survey tables, and keep its plat pages.
 
     is_plat: the state labels this document as a plat (Texas "Plat"
-    attachment), so page classification is not needed.
+    attachment), so page classification is not needed. The tool does not
+    read plats. It keeps them as PDF files for review.
 
     Results are cached by the document's hash, so the same file from a
     second user's job costs nothing.
     """
+    file_id = files.store(data)
     cpath = _cache_path(data)
     if cpath.exists():
         cached = json.loads(cpath.read_text())
@@ -67,10 +74,11 @@ def process_document(
     if n > settings.max_pages_per_well:
         say(f"{source}: {n} pages, only the first {settings.max_pages_per_well} were checked")
         n = settings.max_pages_per_well
-    result = DocumentResult()
+    result = DocumentResult(file_id=file_id, pages=n)
     if is_plat:
-        say(f"{source}: reading the plat")
-        result.plats.append(plats.make_plat(data, list(range(1, n + 1)), source, title, client=client, say=say))
+        say(f"{source}: plat kept for review")
+        result.plat_pages = list(range(1, n + 1))
+        result.plats.append(plats.make_plat(data, result.plat_pages, source, title, file_id))
         _save(cpath, result)
         return result
 
@@ -79,6 +87,7 @@ def process_document(
     kinds = vision.classify_pages(thumbs, client=client)
     survey_pages = sorted(p for p, k in kinds.items() if k in (vision.PageKind.DIRECTIONAL, vision.PageKind.INCLINATION))
     plat_pages = sorted(p for p, k in kinds.items() if k == vision.PageKind.PLAT)
+    result.survey_pages, result.plat_pages = survey_pages, plat_pages
     if survey_pages:
         # Pages with a text layer: read the numbers directly. Exact and free.
         from_text = parse_text_pdf(data, survey_pages) if data[:4] == b"%PDF" else {}
@@ -95,13 +104,15 @@ def process_document(
                 except vision.VisionError as e:
                     say(f"{source} page {no}: {e}")
         result.surveys = merge_pages(sorted(extracted, key=lambda x: x[0]), source)
+        for sv in result.surveys:
+            sv.source_file_id = file_id
         conv = grid_convergence_from_text(data, survey_pages) if data[:4] == b"%PDF" else None
         for s in result.surveys:
             if s.grid_convergence_deg is None and conv is not None:
                 s.grid_convergence_deg = conv
     for group in _consecutive(plat_pages):
-        say(f"{source}: reading plat on page(s) {', '.join(map(str, group))}")
-        result.plats.append(plats.make_plat(data, group, source, title or "plat", client=client, say=say))
+        say(f"{source}: plat on page(s) {', '.join(map(str, group))} kept for review")
+        result.plats.append(plats.make_plat(data, group, source, title or "plat", file_id))
     _save(cpath, result)
     return result
 
@@ -117,9 +128,6 @@ def _consecutive(pages: list[int]) -> list[list[int]]:
 
 
 def _save(cpath, result: DocumentResult) -> None:
-    # Do not cache a result that failed only because the API was not available.
-    if any(n.startswith("Not read") for p in result.plats for n in p.notes):
-        return
     cpath.write_text(json.dumps({"version": CACHE_VERSION, "result": result.model_dump(mode="json")}))
 
 
