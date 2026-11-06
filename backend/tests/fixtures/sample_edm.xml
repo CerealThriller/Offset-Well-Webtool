@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<export>
+  <CD_PROJECT project_id="P1" project_name="Loving Test" geo_datum_name="NAD27" />
+  <CD_SITE site_id="S1" project_id="P1" site_name="TEST PAD" loc_lat="31.9300000" loc_long="-103.4900000" geo_datum_name="North American Datum 1927" />
+  <CD_WELL well_id="W1" site_id="S1" well_common_name="TEST 1H" geo_latitude="31.93" geo_longitude="-103.49" />
+  <CD_WELLBORE wellbore_id="W1B" well_id="W1" wellbore_name="OH" />
+  <CD_DESIGN design_id="W1D" wellbore_id="W1B" design_name="Plan 1" phase="PLAN" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="0" md="0.0" inclination="0.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="1" md="9000.0" inclination="0.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="2" md="9100.0" inclination="10.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="3" md="9200.0" inclination="20.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="4" md="9300.0" inclination="30.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="5" md="9400.0" inclination="40.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="6" md="9500.0" inclination="50.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="7" md="9600.0" inclination="60.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="8" md="9700.0" inclination="70.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="9" md="9800.0" inclination="80.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="10" md="9900.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="11" md="10400.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="12" md="10900.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="13" md="11400.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="14" md="11900.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="15" md="12400.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="16" md="12900.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="17" md="13400.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="18" md="13900.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="19" md="14400.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="20" md="14900.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="21" md="15400.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="22" md="15900.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="23" md="16400.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="24" md="16900.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="25" md="17400.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="26" md="17900.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="27" md="18400.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="28" md="18900.0" inclination="90.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W1D" wellbore_id="W1B" sequence_no="29" md="19000.0" inclination="90.0" azimuth="0.0" />
+  <CD_WELL well_id="W2" site_id="S1" well_common_name="TEST 2H" geo_latitude="31.93" geo_longitude="-103.4897" />
+  <CD_WELLBORE wellbore_id="W2B" well_id="W2" wellbore_name="OH" />
+  <CD_DESIGN design_id="W2D" wellbore_id="W2B" design_name="Plan 1" phase="PLAN" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="0" md="0.0" inclination="0.0" azimuth="0.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="1" md="9000.0" inclination="0.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="2" md="9100.0" inclination="10.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="3" md="9200.0" inclination="20.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="4" md="9300.0" inclination="30.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="5" md="9400.0" inclination="40.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="6" md="9500.0" inclination="50.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="7" md="9600.0" inclination="60.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="8" md="9700.0" inclination="70.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="9" md="9800.0" inclination="80.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="10" md="9900.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="11" md="10400.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="12" md="10900.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="13" md="11400.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="14" md="11900.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="15" md="12400.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="16" md="12900.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="17" md="13400.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="18" md="13900.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="19" md="14400.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="20" md="14900.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="21" md="15400.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="22" md="15900.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="23" md="16400.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="24" md="16900.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="25" md="17400.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="26" md="17900.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="27" md="18400.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="28" md="18900.0" inclination="90.0" azimuth="180.0" />
+  <CD_SURVEY_STATION design_id="W2D" wellbore_id="W2B" sequence_no="29" md="19000.0" inclination="90.0" azimuth="180.0" />
+</export>

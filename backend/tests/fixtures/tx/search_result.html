@@ -1,0 +1,780 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html>
+
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=ISO_8859-1">
+    <link rel="stylesheet" type="text/css" href="/CMPL/styles/ogm_style.css">
+    <title>Oil & Gas Completions</title>
+  </head>
+
+  <!-- header -->
+  
+    
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+function openHelp(obj) {
+
+  var help = '/CMPL/help/' +obj;
+  // alert(help);
+
+  hold = window.open(
+    help,
+    'popupWindow',
+    'resizable=yes,menubar=yes,scrollbars=yes,width=500,height=400,x=1,y=1,screenx=1,screeny=1');
+  hold.focus();
+  return false;
+}
+</script>
+
+<!-- System Header -->
+<table style="width:100%; margin:auto;"  border="0" cellspacing="0" cellpadding="0">
+  <script>
+  function validateHeader(){
+  	 if(document.forms["HeaderForm"].elements["go"].selectedIndex ==0)
+     {
+     	return false;
+     }else{
+  	   lnk = '..'+ document.forms["HeaderForm"].elements["go"].value;  	   
+  	   location.href = lnk;
+     }
+  }
+  function logout(){			
+	   lnk = '../security//headerSubmitAction.do?submit=Log Out';		   
+	   location.href = lnk;			
+  }	  
+  </script>
+
+  <form name="HeaderForm" action="/security//headerSubmitAction.do">
+    <tr>
+      <td class="MainHeader" valign="center" height="35">
+        <img src="/CMPL/commonuiImages/rrc_online_header.gif" height="35" width="334" border="0" alt="">
+      </td>
+      <td align="right" class="MainHeader">
+	
+      </td>
+      <td class="MainHeader"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="1" alt=""></td>
+    </tr>
+  </form>
+  <tr>
+    <td colspan="3" class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="3" width="1" alt=""></td>
+  </tr>
+</table>
+
+<!--Application Header-->
+<table style="width:100%; margin:auto;"  border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <td style="height:26;" class="AppHeader"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="4" alt=""></td>
+    <td style="width:100%;" class="AppHeader">
+      Oil & Gas Completions
+    </td>
+  </tr>
+</table>
+
+<!-- Top Nav Level 2 -->
+<!--Navigation Table Level 2 and 3-->
+<table style="width:100%; margin:auto;"  border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <td style="width:100%;" class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="2" width="1" alt=""></td>
+  </tr>
+</table>
+<table style="width:100%; margin:auto;"  border="0" cellspacing="0" cellpadding="0">
+  <!--Level 2 navigation row-->
+  <tr>
+    <td class="AppNavMain" style="width:1%;"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="10" alt=""></td>
+    <td class="AppNavMain" style="width:99%;">
+      <table border="0" cellspacing="0" cellpadding="0">
+        <tr>
+	
+
+	
+          <td class="AppNavMainSelected">
+            <a href="/CMPL/publicHomeAction.do">Completions Home</a>
+          </td>
+          <td class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="1" alt=""></td>
+
+          <td class="AppNavMain">
+            <a href="#" onclick="openHelp('Comp_Query_Help.html')">Help</a>
+
+          </td>
+          <td class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="1" alt=""></td>
+	
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table style="width:100%; margin:auto;"  border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <td style="width:100%;" class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="1" alt=""></td>
+  </tr>
+</table>
+
+
+
+
+
+
+  <!-- Content Area -->
+  <table style="width:100%; margin:auto;">
+    <tr valign="top">
+      <td style="width:100%;" class="ContentArea">
+        <span id="messageArea">
+
+
+
+
+<!-- /tiles/messages.jsp BEGIN -->
+
+
+
+
+<!-- /tiles/messages.jsp END -->
+</span>
+        
+
+
+
+
+
+
+
+
+
+
+
+<script LANGUAGE="JavaScript">
+
+  function loadPacket(fldId) {
+  document.forms[1]['formData.methodHndlr.inputValue'].value='loadPacket';
+  document.forms[1].elements['packetSummaryId'].value=fldId;
+  document.forms[1].submit();
+  }
+  function doSearch(){
+  document.forms[1]['formData.methodHndlr.inputValue'].value='search';
+  document.forms[1].submit();
+  }
+  function toSearch() {
+  document.forms[1]['formData.methodHndlr.inputValue'].value='init';
+  document.forms[1].submit();
+  }
+  function doSort(columnName, direction) {
+  document.forms[1].elements['searchArgs.orderByHndlr.inputValue'].value = columnName + "," + direction;
+  doSearch();
+  }
+
+</script>
+
+
+
+
+
+<form name="externalPacketForm" method="post" action="/CMPL/publicSearchAction.do">
+
+
+
+
+
+
+
+
+
+
+  <!-- add the forms hidden fields -->
+  
+    <input type="hidden" name="formData.methodHndlr.inputValue" value="search">
+    <input type="hidden" name="formData.filingOperatorNoHndlr.inputValue" value="">
+    <input type="hidden" name="formData.filingOperatorNameHndlr.inputValue" value="">
+    <input type="hidden" name="formData.pageForwardHndlr.inputValue" value="">
+    <input type="hidden" name="formData.pageReturnHndlr.inputValue" value="">
+    <input type="hidden" name="formData.headerTabSelectedHndlr.inputValue" value="">
+    <input type="hidden" name="formData.resetPagerFlagHndlr.inputValue" value="">
+    <input type="hidden" name="formData.actionFlagHndlr.inputValue" value="0">
+
+  <!-- Add hidden fields from various input records -->
+  
+    <input type="hidden" name="searchArgs.fromSubmitDtArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.toSubmitDtArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.districtCodeArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.packetIdArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.wellTypeArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.operatorNoArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.statusCodeArgHndlr.inputValue" value="4">
+    <input type="hidden" name="searchArgs.orderByHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.packetTypeCodeHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.apiNoHndlr.inputValue" value="30133188">
+    <input type="hidden" name="searchArgs.dpNoHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.countyCodeHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.leaseNoArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.fieldNoArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.wellboreProfileArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.purposeOfFilingArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.filingMethodArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.horzWellboreTypePsaHndlr.booleanValue" value="false">
+    <input type="hidden" name="searchArgs.horzWellboreTypeAllocationHndlr.booleanValue" value="false">
+    <input type="hidden" name="searchArgs.horzWellboreTypeStackedLatHndlr.booleanValue" value="false">
+    <input type="hidden" name="searchArgs.excludeStatusAndApprovedDtHndlr.booleanValue" value="false">
+    <input type="hidden" name="searchArgs.stackedLatStatusNoParentHndlr.inputValue" value="">
+
+  <table class="cmplPage">
+    <tr>
+      <td><h2 class="style5">Records Found</h2></td>
+    </tr>
+    <tr>
+
+    </tr>
+    <tr>
+      <td>
+        <table style="width:100%;" class="TabBox2">
+
+          <tr>
+            <td>
+              <input type="button" name="Init" value="Return To Search" onclick="toSearch();">
+            </td>
+          </tr>
+
+          <tr>
+            <td><b>Search Criteria:</b>
+              
+		
+             	<li>
+		  Current Status: Approved
+             	</li>
+		
+              
+		
+             	<li>
+		  API No.: 30133188
+             	</li>
+		
+              
+		
+             	<li>
+		  Production Sharing Agreement (PSA): N
+             	</li>
+		
+              
+		
+             	<li>
+		  Allocation: N
+             	</li>
+		
+              
+		
+             	<li>
+		  Stacked Lateral (SL): N
+             	</li>
+		
+              
+		
+             	<li>
+		  Select to search by submitted date only.  Select &#034;Current Status&#034; of NONE.: N
+             	</li>
+		
+              
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              <table style="width:100%;" class="DataGrid">
+                <tr>
+                  <td colspan="12" height="25">
+                    
+                      
+                    
+
+
+
+
+
+
+
+
+
+
+
+
+  <table style="width:100%; white-space: nowrap;">
+    <tr>
+      <td style="text-align: left; border-style:none; font-weight: bold">
+        1 results
+      </td>
+      <td style="text-align: center; border-style:none;">
+        
+          
+            Page: 1 of 1 <!-- Simple case, single page output -->
+          
+
+          
+        
+      </td>
+
+      <!-- Page size control -->  
+      <td style="text-align: right; border-style:none;">
+        <label>
+          Page Size:
+          <select name="pager.pageSize" onchange="doSearch()"><option value="-1">View All</option></select>
+        </label>
+      </td>
+
+    </tr>
+  </table>
+
+
+
+                  </td>
+                </tr>
+                <tr>
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('CMPL_PACKET_SUMMARY_ID','ASC')">Tracking No.</a>
+
+  
+
+</th>
+
+
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('STATUS_CODE','ASC')">Status</a>
+
+  
+
+</th>
+
+
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('PACKET_TYPE_CODE','ASC')">Packet Type</a>
+
+  
+
+</th>
+
+
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('API_NO','ASC')">API No.</a>
+
+  
+
+</th>
+
+
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('DRILLING_PERMIT_NO','ASC')">Drilling Permit (DP) No.</a>
+
+  
+
+</th>
+
+
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('WELL_NO_CODE','ASC')">Well No.</a>
+
+  
+
+</th>
+
+
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('SUBMIT_DATE','ASC')">Submit Date</a>
+
+  
+
+</th>
+
+
+                  
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('ORGANIZATION_NAME','ASC')">Filing Operator</a>
+
+  
+
+</th>
+
+
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('LEASE_NO','ASC')">Lease No.</a>
+
+  
+
+</th>
+
+
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('LEASE_NAME','ASC')">Lease Name</a>
+
+  
+
+</th>
+
+
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('LABEL','ASC')">Stacked Lateral (SL) Parent/Child Well</a>
+
+  
+
+</th>
+
+
+                  
+                    
+                    
+                    
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<th>
+
+  <a href="Javascript:doSort('STACKED_LAT_STATUS_NO','ASC')">SL Parent Well DP No.</a>
+
+  
+
+</th>
+
+
+
+                </tr>
+
+                
+                  
+                    <tr>
+                      <td>
+                      	
+                      	<a href="?packetSummaryId=177604&amp;formData.methodHndlr.inputValue=loadPacket&amp;formData.hrefValue=%257C1007%253D0&amp;searchArgs.paramValue=%257C6%253D4%257C9%253D30133188%257C17%253DN%257C18%253DN%257C19%253DN%257C21%253DN&amp;pager.paramValue=%7c1%3d1%7c2%3d10%7c3%3d1%7c4%3d0%7c5%3d1%7c6%3d10&amp;pager.offset=&amp;publicUser=">
+			  177604
+                        </a>
+                      </td>
+                      <td>Approved</td>
+                      <td>Oil / W-2</td>
+                      <td>301-33188</td>
+                      <td>822296</td>
+                      <td>2H</td>
+                      <td>08/03/2017</td>
+                      
+                      
+                      <td>EOG RESOURCES, INC. (253162)</td>
+                      <td align="right">49031</td>
+                      <td>RUSTLER A UNIT</td>
+                      <td></td>
+                      <td></td>
+                    </tr>
+
+                  
+                
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <input type="button" name="Init" value="Return To Search" onclick="toSearch();">
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+
+</form>
+
+
+
+
+      </td>
+    </tr>
+  </table>
+
+  <!-- footer -->
+  
+
+
+
+
+
+
+
+
+
+<table width="100%" border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    
+    
+      <td  height="18" align="center" class="MainFooter">
+        <a target="_blank" href="http://www.rrc.texas.gov/site-policies/railroad-commission-of-texas-site-policies/">Disclaimer</a>
+        | <a  href="/security/login.do">RRC Online Home</a> | <a target="_blank" href="http://www.rrc.texas.gov">RRC Home</a>
+        | <a href="#" onclick="hold=window.open('/security/footer/IO_Contacts.html','popupWindow','resizable=yes,menubar=yes,scrollbars=yes,width=800,height=400,x=1,y=1,screenx=1,screeny=1');hold.focus();return false;">Contact</a>
+      </td>
+    
+  </tr>
+</table>
+<p>&nbsp;</p>
+
+</html>
+

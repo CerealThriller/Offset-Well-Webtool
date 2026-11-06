@@ -1,0 +1,754 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html>
+
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=ISO_8859-1">
+    <link rel="stylesheet" type="text/css" href="/CMPL/styles/ogm_style.css">
+    <title>Oil & Gas Completions</title>
+  </head>
+
+  <!-- header -->
+  
+    
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+function openHelp(obj) {
+
+  var help = '/CMPL/help/' +obj;
+  // alert(help);
+
+  hold = window.open(
+    help,
+    'popupWindow',
+    'resizable=yes,menubar=yes,scrollbars=yes,width=500,height=400,x=1,y=1,screenx=1,screeny=1');
+  hold.focus();
+  return false;
+}
+</script>
+
+<!-- System Header -->
+<table style="width:100%; margin:auto;"  border="0" cellspacing="0" cellpadding="0">
+  <script>
+  function validateHeader(){
+  	 if(document.forms["HeaderForm"].elements["go"].selectedIndex ==0)
+     {
+     	return false;
+     }else{
+  	   lnk = '..'+ document.forms["HeaderForm"].elements["go"].value;  	   
+  	   location.href = lnk;
+     }
+  }
+  function logout(){			
+	   lnk = '../security//headerSubmitAction.do?submit=Log Out';		   
+	   location.href = lnk;			
+  }	  
+  </script>
+
+  <form name="HeaderForm" action="/security//headerSubmitAction.do">
+    <tr>
+      <td class="MainHeader" valign="center" height="35">
+        <img src="/CMPL/commonuiImages/rrc_online_header.gif" height="35" width="334" border="0" alt="">
+      </td>
+      <td align="right" class="MainHeader">
+	
+      </td>
+      <td class="MainHeader"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="1" alt=""></td>
+    </tr>
+  </form>
+  <tr>
+    <td colspan="3" class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="3" width="1" alt=""></td>
+  </tr>
+</table>
+
+<!--Application Header-->
+<table style="width:100%; margin:auto;"  border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <td style="height:26;" class="AppHeader"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="4" alt=""></td>
+    <td style="width:100%;" class="AppHeader">
+      Oil & Gas Completions
+    </td>
+  </tr>
+</table>
+
+<!-- Top Nav Level 2 -->
+<!--Navigation Table Level 2 and 3-->
+<table style="width:100%; margin:auto;"  border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <td style="width:100%;" class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="2" width="1" alt=""></td>
+  </tr>
+</table>
+<table style="width:100%; margin:auto;"  border="0" cellspacing="0" cellpadding="0">
+  <!--Level 2 navigation row-->
+  <tr>
+    <td class="AppNavMain" style="width:1%;"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="10" alt=""></td>
+    <td class="AppNavMain" style="width:99%;">
+      <table border="0" cellspacing="0" cellpadding="0">
+        <tr>
+	
+
+	
+          <td class="AppNavMainSelected">
+            <a href="/CMPL/publicHomeAction.do">Completions Home</a>
+          </td>
+          <td class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="1" alt=""></td>
+
+          <td class="AppNavMain">
+            <a href="#" onclick="openHelp('Comp_Query_Help.html')">Help</a>
+
+          </td>
+          <td class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="1" alt=""></td>
+	
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<table style="width:100%; margin:auto;"  border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    <td style="width:100%;" class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="1" alt=""></td>
+  </tr>
+</table>
+
+
+
+
+
+
+  <!-- Content Area -->
+  <table style="width:100%; margin:auto;">
+    <tr valign="top">
+      <td style="width:100%;" class="ContentArea">
+        <span id="messageArea">
+
+
+
+
+<!-- /tiles/messages.jsp BEGIN -->
+
+
+
+
+<!-- /tiles/messages.jsp END -->
+</span>
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<form name="externalPacketForm" method="post" action="/CMPL/publicSearchAction.do">
+
+
+
+
+
+
+
+
+
+
+<script type="text/javascript">
+  function doPrintAll(){
+    document.forms[1]['formData.methodHndlr.inputValue'].value='printAllForms';
+    document.forms[1].submit();
+  }
+
+  function doView(idx) {
+    // alert(" doView(): idx = " + idx);
+    document.forms['externalPacketForm']['letterIdx'].value=idx;
+    document.forms['externalPacketForm']['formData.methodHndlr.inputValue'].value='previewLetter';
+    document.forms['externalPacketForm'].submit();
+  }
+
+</script>
+
+  
+    <input type="hidden" name="formData.methodHndlr.inputValue" value="loadPacket">
+    <input type="hidden" name="formData.filingOperatorNoHndlr.inputValue" value="">
+    <input type="hidden" name="formData.filingOperatorNameHndlr.inputValue" value="">
+    <input type="hidden" name="formData.pageForwardHndlr.inputValue" value="">
+    <input type="hidden" name="formData.pageReturnHndlr.inputValue" value="">
+    <input type="hidden" name="formData.headerTabSelectedHndlr.inputValue" value="">
+    <input type="hidden" name="formData.resetPagerFlagHndlr.inputValue" value="">
+    <input type="hidden" name="formData.actionFlagHndlr.inputValue" value="0">
+
+  
+    <input type="hidden" name="searchArgs.fromSubmitDtArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.toSubmitDtArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.districtCodeArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.packetIdArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.wellTypeArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.operatorNoArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.statusCodeArgHndlr.inputValue" value="4">
+    <input type="hidden" name="searchArgs.orderByHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.packetTypeCodeHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.apiNoHndlr.inputValue" value="30133188">
+    <input type="hidden" name="searchArgs.dpNoHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.countyCodeHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.leaseNoArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.fieldNoArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.wellboreProfileArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.purposeOfFilingArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.filingMethodArgHndlr.inputValue" value="">
+    <input type="hidden" name="searchArgs.horzWellboreTypePsaHndlr.booleanValue" value="false">
+    <input type="hidden" name="searchArgs.horzWellboreTypeAllocationHndlr.booleanValue" value="false">
+    <input type="hidden" name="searchArgs.horzWellboreTypeStackedLatHndlr.booleanValue" value="false">
+    <input type="hidden" name="searchArgs.excludeStatusAndApprovedDtHndlr.booleanValue" value="false">
+    <input type="hidden" name="searchArgs.stackedLatStatusNoParentHndlr.inputValue" value="">
+
+  
+  
+
+  <input type="hidden" name="packetSummaryId" value="177604">
+  <input type="hidden" name="pager.offset" value="0">
+  <input type="hidden" name="letterIdx" value="0">
+
+  <table class="cmplPage">
+    <tr>
+      <td valign="top">
+        
+      	  
+      	  
+      	  
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table class="TabBox">
+  <tr>
+    <td class="Tab">
+      
+      <a href="?formData.methodHndlr.inputValue=init&amp;formData.hrefValue=%257C1007%253D0&amp;searchArgs.paramValue=%257C6%253D4%257C9%253D30133188%257C17%253DN%257C18%253DN%257C19%253DN%257C21%253DN">Search</a>
+    </td>
+    <td class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="1" alt=""></td>
+    <td class="Tab">
+      
+      <a href="?formData.methodHndlr.inputValue=search&amp;formData.hrefValue=%257C1007%253D0&amp;searchArgs.paramValue=%257C6%253D4%257C9%253D30133188%257C17%253DN%257C18%253DN%257C19%253DN%257C21%253DN&amp;pager.offset=0&amp;pager.pageSize=10">Return to List</a>
+    </td>
+
+
+
+   <td class="BorderLines"><img src="/CMPL/commonuiImages/spacer.gif" height="1" width="1" alt=""></td>
+    <td class="TabSelected">
+      
+	 <a href="?formData.methodHndlr.inputValue=loadPacket&amp;formData.hrefValue=%257C1007%253D0&amp;packetSummaryId=177604&amp;searchArgs.paramValue=%257C6%253D4%257C9%253D30133188%257C17%253DN%257C18%253DN%257C19%253DN%257C21%253DN&amp;pager.offset=0&amp;pager.pageSize=10">Detail</a>
+    </td>
+
+  </tr>
+</table>
+        <table style="width:100%;" class="TabBox2">
+          
+            
+          
+
+
+<tr>
+  <th colspan="2" align="left">      
+    <h2 class="style5">Form Summary</h2>
+  </th>
+</tr>
+
+
+
+
+
+
+          <tr>
+            <td>
+              <table width="100%">
+                <tr>
+                  <td valign="top" colspan="2">
+                    <table width="100%">
+                      <tr>
+                        <td>
+                          
+                            
+                            
+                          
+
+
+
+
+
+
+
+
+
+
+
+
+<table class="GroupBox1">
+  <tr colspan="2">
+    <th>
+      Packet Summary Data
+    </th>
+    <th align="left">
+      Submitted:
+      <strong>Online</strong>
+    </th>
+  </tr>
+  <tr>
+    <td>
+      Tracking No.:
+      <strong>177604</strong>
+    </td>
+    <td>
+        Status: <strong>Approved (12/11/2017)</strong>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      Operator Name:
+      <strong>EOG RESOURCES, INC. (253162)</strong>
+    </td>
+    
+      <td>
+        Type Of Completion:
+        <strong>New Well</strong>
+      </td>
+    
+    
+  </tr>
+  <tr>
+    <td>
+      Field Name:
+      <strong>PHANTOM (WOLFCAMP)</strong>
+    </td>
+    <td>
+      
+      
+      Completion or Recompletion Date:
+      <strong>02/06/2017</strong>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      Lease Name:
+      <strong>RUSTLER A UNIT</strong>
+    </td>
+    <td>
+      Purpose Of Filing:
+      <strong>Well Record Only</strong>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      RRC District No.:
+      <strong>08</strong>
+    </td>
+    
+      <td>
+        Well Type:
+        <strong>Shut-In Producer</strong>
+      </td>
+    
+    
+  </tr>
+  <tr>
+    <td>
+      RRC Gas ID or Oil Lease No.:
+      <strong>49031</strong>
+    </td>
+    <td>
+      County:
+      <strong>LOVING</strong>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      Well No.:
+      <strong>   2H </strong>
+    </td>
+
+    <td>
+
+      
+
+        Wellbore Profile:
+        <strong>HORIZONTAL</strong>
+        
+
+    </td>
+  </tr>
+
+
+  
+  
+  
+  
+    
+  
+
+
+  <tr>
+    <td>
+      API No.: 
+      <strong> 42-301-33188</strong>
+      &nbsp;
+      
+       
+      <a href="https://gis.rrc.texas.gov/GISViewer/index.html?api=30133188" target="_blank"><img src="images/txmap4.gif" height="20" width="20" border="0" alt="GIS"></a>
+    </td>
+
+    
+
+    
+      
+        <td>
+          Horiz WB Completion Type:
+          <strong></strong>
+
+          
+        </td>
+      
+      
+    
+  </tr>
+
+  <tr>
+    <td>
+      Drilling Permit No:
+      <strong>822296</strong>
+    </td>
+
+    
+
+    
+      
+        <td>
+          SL Record (Parent) Well Drilling Permit No.:
+          <strong></strong>
+        </td>
+      
+      
+    
+  </tr>
+
+  
+  <tr>
+    <td>
+      Field No.: <strong>71052900</strong>
+    </td>
+
+    
+      
+        <td>
+          Horizontal Depth Severance (feet):
+
+          
+          <strong> </strong>
+        </td>
+      
+      
+    
+  </tr>
+
+
+  
+  
+
+
+  
+  
+    
+
+     
+    
+      <tr>
+        <td>
+          Submitted: <strong>(08/03/2017)</strong>
+        </td>
+        <td>
+        </td>
+      </tr>
+    
+
+
+  
+ 
+
+
+
+</table>
+
+
+
+                        </td>
+                        <td align="left">
+                           
+                            <table valign="top" align="left" width="100%" border="1" cellpadding="4" cellspacing="0">
+                              <tr>
+                                <td><b>
+                                    For chemical information after<br>
+                                    February 1, 2012 enter the<br>
+                                    API Number on the 
+                                    <a target="_blank" href="http://www.fracfocus.org">FracFocus<br> Chemical Disclosure Registry</a>.
+                                  </b>
+                                </td>
+                              </tr>
+                            </table>
+                          
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td>
+                    <table style="width:100%;" class="DataGrid">
+
+                      <tr>
+                  	<th style="white-space: normal; text-align: center">Form/Attachment</th>
+                  	<th style="white-space: normal; text-align: center">Status</th>
+
+                  	<th style="white-space: normal; text-align: center">View Form/Attachment</th>
+                        
+                        
+                      </tr>
+
+
+                     
+                       
+			<tr>
+			  <td align="left">
+                            <div align="left">W-2</div>
+                          </td>
+			  <td><div align="left">Certified</div></td>
+                          
+                      	  <td>
+                            
+                              <a href="/CMPL/viewPdfReportFormAction.do?method=cmplW2FormPdf&packetSummaryId=177604" target="blank" title="">View</a>
+                            
+                      	  </td>
+                          
+                          
+                        </tr>
+                       
+			<tr>
+			  <td align="left">
+                            <div align="left">L-1</div>
+                          </td>
+			  <td><div align="left">Certified</div></td>
+                          
+                      	  <td>
+                            
+                              <a href="/CMPL/viewPdfReportFormAction.do?method=cmplL1FormPdf&packetSummaryId=177604" target="blank" title="">View</a>
+                            
+                      	  </td>
+                          
+                          
+                        </tr>
+                       
+			<tr>
+			  <td align="left">
+                            <div align="left">P-4 Data</div>
+                          </td>
+			  <td><div align="left">Certified</div></td>
+                          
+                      	  <td>
+                            
+                              <a href="/CMPL/viewPdfReportFormAction.do?method=cmplP4FormPdf&packetSummaryId=177604" target="blank" title="">View</a>
+                            
+                      	  </td>
+                          
+                          
+                        </tr>
+                       
+                     
+                     
+                       
+			<tr>
+			  <td align="left">
+                            <div align="left">W-15</div>
+                          </td>
+			  <td><div align="left"></div></td>
+                      	  <td>
+                           <a href="https://webapps.rrc.state.tx.us/dpimages/r/3639613" target="blank">
+                             View
+                           </a>
+                      	  </td>
+                          
+                          
+                        </tr>
+                       
+			<tr>
+			  <td align="left">
+                            <div align="left">P-12</div>
+                          </td>
+			  <td><div align="left"></div></td>
+                      	  <td>
+                           <a href="https://webapps.rrc.state.tx.us/dpimages/r/3639614" target="blank">
+                             View
+                           </a>
+                      	  </td>
+                          
+                          
+                        </tr>
+                       
+			<tr>
+			  <td align="left">
+                            <div align="left">GAU LETTER</div>
+                          </td>
+			  <td><div align="left"></div></td>
+                      	  <td>
+                           <a href="https://webapps.rrc.state.tx.us/dpimages/r/3639616" target="blank">
+                             View
+                           </a>
+                      	  </td>
+                          
+                          
+                        </tr>
+                       
+			<tr>
+			  <td align="left">
+                            <div align="left">SWR 13 Letter</div>
+                          </td>
+			  <td><div align="left"></div></td>
+                      	  <td>
+                           <a href="https://webapps.rrc.state.tx.us/dpimages/r/3639618" target="blank">
+                             View
+                           </a>
+                      	  </td>
+                          
+                          
+                        </tr>
+                       
+                     
+                    </table>
+                  </td>
+                </tr>
+
+                
+
+                
+                <tr>
+                  <td>
+                    <table style="width:100%;" class="GroupBox1">
+                      <tr>
+                  	<th style="white-space: normal; text-align: left">Public Comments</th>
+                      </tr>
+                      <tr>
+                        <td>
+                          <textarea name="publicComments" cols="95" rows="4" readonly="readonly"></textarea>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                
+                
+
+              </table>
+            </td>
+            <td></td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+
+
+
+</form>
+
+
+
+      </td>
+    </tr>
+  </table>
+
+  <!-- footer -->
+  
+
+
+
+
+
+
+
+
+
+<table width="100%" border="0" cellspacing="0" cellpadding="0">
+  <tr>
+    
+    
+      <td  height="18" align="center" class="MainFooter">
+        <a target="_blank" href="http://www.rrc.texas.gov/site-policies/railroad-commission-of-texas-site-policies/">Disclaimer</a>
+        | <a  href="/security/login.do">RRC Online Home</a> | <a target="_blank" href="http://www.rrc.texas.gov">RRC Home</a>
+        | <a href="#" onclick="hold=window.open('/security/footer/IO_Contacts.html','popupWindow','resizable=yes,menubar=yes,scrollbars=yes,width=800,height=400,x=1,y=1,screenx=1,screeny=1');hold.focus();return false;">Contact</a>
+      </td>
+    
+  </tr>
+</table>
+<p>&nbsp;</p>
+
+</html>
+

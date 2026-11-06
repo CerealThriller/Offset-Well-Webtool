@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offset Well Webtool</title>
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Offset Well Webtool</h1>
+    <span class="sub">Offset well surveys from public commission records</span>
+  </header>
+
+  <main class="layout">
+    <aside class="panel">
+      <form id="job-form">
+        <h2>1. Load EDM plans</h2>
+        <label>Compass EDM export (.xml, .gz or .zip)
+          <input type="file" name="file" accept=".xml,.edm,.gz,.zip" required>
+        </label>
+
+        <fieldset>
+          <legend>Coordinates</legend>
+          <label>Datum
+            <select name="datum">
+              <option value="auto">Read from file</option>
+              <option value="NAD27">NAD27</option>
+              <option value="NAD83">NAD83</option>
+            </select>
+          </label>
+          <label>Map CRS (if the file has easting/northing)
+            <select name="epsg" id="crs-select"><option value="">Read from file</option></select>
+          </label>
+          <label>North reference of the plan
+            <select name="north_reference">
+              <option value="auto">Read from file</option>
+              <option value="true">True north</option>
+              <option value="grid">Grid north</option>
+            </select>
+          </label>
+          <label>Grid convergence (deg, optional)
+            <input type="number" name="convergence_deg" step="0.0001" placeholder="calculated from CRS">
+          </label>
+          <label>Depth unit in file
+            <select name="depth_unit">
+              <option value="ft">Feet</option>
+              <option value="m">Meters</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Search area</legend>
+          <label>Radius
+            <select name="radius_miles" id="radius">
+              <option value="0.5">0.5 mile</option>
+              <option value="1" selected>1 mile</option>
+              <option value="2">2 miles</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <input type="number" id="radius-custom" step="0.05" min="0.05" max="10" placeholder="miles" hidden>
+          <label>Buffer around
+            <select name="buffer_mode">
+              <option value="per_well">Each wellbore path</option>
+              <option value="pad">The whole pad (hull)</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>States</legend>
+          <div id="states" class="states"></div>
+        </fieldset>
+
+        <label class="check"><input type="checkbox" name="auto_extract"> Extract all surveys after the search</label>
+        <button type="submit" id="submit-btn">Search offsets</button>
+        <p id="form-error" class="error" hidden></p>
+      </form>
+
+      <section>
+        <h2>Recent jobs</h2>
+        <ul id="job-list" class="job-list"></ul>
+      </section>
+    </aside>
+
+    <section class="content">
+      <div id="map" class="map"></div>
+
+      <div class="toolbar">
+        <span id="job-status" class="status">No job loaded</span>
+        <button id="extract-btn" disabled>Extract selected surveys</button>
+        <a id="export-btn" class="button disabled" href="#">Download Excel</a>
+      </div>
+
+      <div class="table-wrap">
+        <table id="offset-table" class="grid">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="select-all" title="Select all"></th>
+              <th>State</th><th>API</th><th>Name</th><th>Operator</th><th>Status</th>
+              <th>Trajectory</th><th>Dist. to plan (ft)</th><th>Survey</th><th>Documents</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <section id="survey-view" class="survey-view" hidden>
+        <h2 id="survey-title"></h2>
+        <div id="survey-body"></div>
+      </section>
+
+      <details class="log">
+        <summary>Job log</summary>
+        <pre id="job-log"></pre>
+      </details>
+    </section>
+  </main>
+
+  <input type="file" id="upload-input" accept=".pdf,.tif,.tiff,.png,.jpg" hidden>
+  <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>

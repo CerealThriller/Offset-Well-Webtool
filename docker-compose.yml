@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OWT_REQUEST_INTERVAL_S: "1.0"
+      OWT_WORKER_THREADS: "4"
+    volumes:
+      - owt-data:/data
+    restart: unless-stopped
+
+volumes:
+  owt-data:
